@@ -1,0 +1,9 @@
+
+1. pdays has values of 999 (means client was not previously contacted),
+   set them to NA or keep 999? 
+   keeping 999 the histogram highly influenced by these values.
+   
+2. What to do with cons.price.idx, cons.conf.idx, euribor3m and nr.employed,
+  they do not seem to be transformed to gaussian.
+  
+3. BoxCox issue (not working as expected)

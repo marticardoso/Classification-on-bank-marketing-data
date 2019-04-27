@@ -13,16 +13,18 @@ rm(list = ls())
 # Set environment
 setwd(".")
 
+library(MASS)
+
 ####################################################################
 # READING CSV 
 ####################################################################
 
 dataset <- read.csv("./dataset/bank-additional/bank-additional-full.csv", header = TRUE, sep= ";", dec = ".", check.names=TRUE)
 
-# the dimensions of the data set 
+# dataset dimensions 
 dim(dataset)
 
-# Columns
+# Column names
 names(dataset)
 
 
@@ -30,8 +32,19 @@ names(dataset)
 # BASIC INSPECTION OF THE DATASET
 ####################################################################
 
+
 #Summary
 summary(dataset)
+
+# First of all, we remove the duration variable because the duration is not known before a call is performed
+# so, it cannot be used for the predictive model
+dataset$duration <- NULL
+
+# Transform y to logical
+tmp <- as.logical(dataset$y)
+tmp[dataset$y == "yes"] <- TRUE
+tmp[dataset$y == "no"] <- FALSE
+dataset$y <- tmp;
 
 # Set NA
 # pdays has 999 values, the documentation says that 999 means client was not previously contacted.
@@ -40,17 +53,17 @@ dataset$pdays[dataset$pdays==999] <- NA
 
 # Check factors
 dataset.is.factor <- unlist(lapply(names(dataset), function(col) is.factor(dataset[,col])))
-names(dataset.is.factor) = names(dataset)
+names(dataset.is.factor) <- names(dataset)
 dataset.is.factor
 
+
 # Summary:
-# 10 continuous variables
+# 9 continuous variables
 # 10 categorical variables
 # 1 output variable
 
 
 # inspect the first 4 instances
-
 dataset[1:4,]
 
 
@@ -68,8 +81,6 @@ dataset[1:4,]
 # But more than 30000 instances are NA, so we cannot remove them.
 summary(dataset$pdays)
 
-hist(dataset$pdays)
-
 attach(dataset)
 ####################################################################
 # GAUSSIANITY AND TRANSFORMATIONS
@@ -85,7 +96,6 @@ plotHistAndBoxplot <- function(col){
 }
 
 plotHistAndBoxplot("age")
-plotHistAndBoxplot("duration")
 plotHistAndBoxplot("campaign")
 plotHistAndBoxplot("pdays")
 plotHistAndBoxplot("previous")
@@ -96,12 +106,35 @@ plotHistAndBoxplot("euribor3m")
 plotHistAndBoxplot("nr.employed")
 
 
-#Could be interesting to take logs on duration, campaign
-
-dataset$log.duration = log(dataset$duration+1)
-dataset$log.campaign = log(campaign+1)
-plotHistAndBoxplot("log.duration")
+#Could be interesting to take logs on some variables: campaign, pdays, previous
+dataset$log.campaign = log(dataset$campaign+1)
 plotHistAndBoxplot("log.campaign")
+
+# Pdays
+dataset$log.pdays = log(dataset$pdays+1)
+plotHistAndBoxplot("log.pdays")
+# usefull transformation
+
+# Pdays
+dataset$log.previous = log(dataset$previous+1)
+plotHistAndBoxplot("log.previous")
+dataset$log.previous <- NULL # Not works as expected
+
+##############################
+# This part should be improved
+##############################
+
+# Apply boxcox to campaign
+par(mfrow=c(1,3))
+hist(dataset$campaign,main="Histogram of campaign")
+bx <- boxcox(I(campaign+1) ~ . - y, data = dataset,lambda = seq(-0.25, 0.25, length = 10))
+lambda <- bx$x[which.max(bx$y)]
+dataset$BC.campaign <- (dataset$campaign^lambda - 1)/lambda
+hist(dataset$BC.campaign,main="Histogram of BC.campaign")
+dataset$BC.campaign <- NULL #Not working
+##############################
+#### until here ###
+##############################
 
 par(mfrow=c(1,1))
 
@@ -131,31 +164,6 @@ show.barplot("y")
 # Plot pairs of variables
 plot(dataset$age, dataset$campaign)
 pairs(~ dataset$age + dataset$campaign)
-
-
-## TODO!: look gaussian:
-
-# Do any of the continuous variables "look" Gaussian? 
-# features to look for in comparing to a Gaussian: outliers, asymmetries, long tails
-
-# A useful tool for "Gaussianization" is the Box-Cox power transformation
-
-#library(MASS)
-
-#par(mfrow=c(1,3))
-
-#hist(Capital, main="Look at that ...")
-
-#bx = boxcox(I(Capital+1) ~ . - Assessment, data = Credit.new,
-#            lambda = seq(-0.25, 0.25, length = 10))
-
-#lambda = bx$x[which.max(bx$y)]
-
-#Capital.BC = (Capital^lambda - 1)/lambda
-
-#hist(Capital.BC, main="Look at that now!")
-
-#par (mfrow=c(1,1))
 
 
 ##############################################
@@ -211,15 +219,13 @@ for (i in 1:nrow(pvalcon))
 ####################################################################
 
 # Shuffle the data before saving
-
+shuffle <- function(data){
+  data[sample(nrow(data)),]
+}
 set.seed (104)
-dataset <- dataset[sample(nrow(Credit.new)),]
+dataset <- shuffle(dataset)
 
 # Save data set
 
 save(dataset, file = "bank-processed.Rdata")
 
-# remove (almost) everything in the working environment
-#rm(list = ls())
-
-#load("Credsco-processed.Rdata")

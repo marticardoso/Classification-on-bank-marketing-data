@@ -1,10 +1,13 @@
 ####################################################################
-# Machine Learning - MIRI Master
-# Lluís A. Belanche
+# Course project - MIRI
+## Authors:
+# - Marti Cardoso 
+# - Meysam Zamani
 
-# LAB 9: Feature selection, extraction and weighting
-# version of April 2019
+# Part 2: Feature selection
+# June 2019
 ####################################################################
+
 rm(list = ls())
 
 # Set environment
@@ -12,11 +15,60 @@ setwd(".")
 
 #Load preprocessed data
 load("bank-processed.Rdata")
+load("bank-processed-cat.Rdata")
 
 require(FSelector)
 require(mlbench)
 require(MASS)
 require(CORElearn)
+
+
+#### Feature selection analysis
+dataset.is.numeric <- unlist(lapply(names(dataset), function(col) is.numeric(dataset[,col])))
+cont.vars <- which(dataset.is.numeric==TRUE)
+
+# Feature selection for continuous variables using Fisher's F
+
+pvalcon = NULL
+for (i in 1:length(cont.vars)) 
+  pvalcon[i] <- (oneway.test (dataset[,cont.vars[i]]~dataset$y))$p.value
+
+pvalcon <- matrix(pvalcon)
+row.names(pvalcon) <- names(dataset)[cont.vars]
+
+as.matrix(sort(pvalcon[,1]))
+#All p-values <0.5, so we should keep all continuous variables.
+
+# Graphical representation of outpurt
+ncon = nrow(pvalcon)
+par (mfrow=c(2,4))
+for (i in 1:nrow(pvalcon)) 
+{
+  barplot (tapply(dataset[,cont.vars[i]], dataset$y, function(x) mean(x, na.rm=TRUE)),main=paste("Means by",row.names(pvalcon)[i]), las=2, cex.names=1.25)
+  abline (h=mean(dataset[,cont.vars[i]]))
+  legend (0,mean(dataset[,cont.vars[i]]),"Global mean",bty="n") 
+}
+
+## Categorical variables
+
+apply.chisq.test <- function(data){
+  dataset.is.factor <- unlist(lapply(names(data), function(col) is.factor(data[,col])))
+  cat.vars <- which(dataset.is.factor[-20]==TRUE)
+  cat.pvalcon = NULL
+  for (i in 1:(length(cat.vars)))
+    cat.pvalcon[i] <- (chisq.test(table(data[,cat.vars[i]],data$y)))$p.value
+  
+  cat.pvalcon <- matrix(cat.pvalcon)
+  row.names(cat.pvalcon) <- names(data)[cat.vars]
+  
+  as.matrix(sort(cat.pvalcon[,1]))
+}
+apply.chisq.test(dataset)
+apply.chisq.test(dataset.cat)
+
+
+
+## TO continue...
 
 
 #############################################################
@@ -351,3 +403,10 @@ plot(c(a, x3, x4), c(b, y3,y4), col=c(rep('white', 2),rep('green',N),rep('red',N
 abline(0,LDAslope2,col='black',lwd=2)
 
 par(mfrow=c(1,1))
+
+
+
+
+
+
+

@@ -32,7 +32,6 @@ names(dataset)
 # BASIC INSPECTION OF THE DATASET
 ####################################################################
 
-
 #Summary
 summary(dataset)
 
@@ -44,7 +43,7 @@ dataset$duration <- NULL
 tmp <- as.logical(dataset$y)
 tmp[dataset$y == "yes"] <- TRUE
 tmp[dataset$y == "no"] <- FALSE
-dataset$y <- tmp;
+dataset$y <- as.factor(tmp);
 
 # Set NA
 # pdays has 999 values, the documentation says that 999 means client was not previously contacted.
@@ -55,7 +54,6 @@ dataset$pdays[dataset$pdays==999] <- NA
 dataset.is.factor <- unlist(lapply(names(dataset), function(col) is.factor(dataset[,col])))
 names(dataset.is.factor) <- names(dataset)
 dataset.is.factor
-
 
 # Summary:
 # 9 continuous variables
@@ -75,7 +73,7 @@ dataset[1:4,]
 # we have an implicit modality for them (called 'unknown'), so all missing will belong to this modality.
 # (As there are a lot of instances with missings, e.g. default has more than 8000 instances, 
 # we cannot remove them, and beeing unknown could be important for the classification)
-# So, we keep the missings in the categorical varaibles.
+# So, we keep the missings in the categorical variables.
 
 # Also there is one continuous variable with missings: pdays
 # But more than 30000 instances are NA, so we cannot remove them.
@@ -105,7 +103,12 @@ plotHistAndBoxplot("cons.conf.idx")
 plotHistAndBoxplot("euribor3m")
 plotHistAndBoxplot("nr.employed")
 
+#Plot density
+par(mfrow=c(3,3))
+for (i in which(dataset.is.factor==FALSE)) 
+{ plot(density(na.omit(dataset[, i])), xlab="", main=names(dataset)[i]) }
 
+par(mfrow=c(1,2))
 #Could be interesting to take logs on some variables: campaign, pdays, previous
 dataset$log.campaign = log(dataset$campaign+1)
 plotHistAndBoxplot("log.campaign")
@@ -120,28 +123,9 @@ dataset$log.previous = log(dataset$previous+1)
 plotHistAndBoxplot("log.previous")
 dataset$log.previous <- NULL # Not works as expected
 
-##############################
-# This part should be improved
-##############################
-
-# Apply boxcox to campaign
-par(mfrow=c(1,3))
-hist(dataset$campaign,main="Histogram of campaign")
-bx <- boxcox(I(campaign+1) ~ . - y, data = dataset,lambda = seq(-0.25, 0.25, length = 10))
-lambda <- bx$x[which.max(bx$y)]
-dataset$BC.campaign <- (dataset$campaign^lambda - 1)/lambda
-hist(dataset$BC.campaign,main="Histogram of BC.campaign")
-dataset$BC.campaign <- NULL #Not working
-##############################
-#### until here ###
-##############################
-
-par(mfrow=c(1,1))
-
-boxplot(dataset[,dataset.is.factor==FALSE])
 
 # Categorical variables:
-
+par(mfrow=c(1,1))
 show.barplot <- function(col){
   t <- table(dataset[,col])
   barplot(prop.table(t), main=paste('Barplot of ', col), ylab="proportion", xlab='levels')
@@ -157,7 +141,6 @@ show.barplot("contact")
 show.barplot("month")
 show.barplot("day_of_week")
 show.barplot("poutcome")
-
 show.barplot("y")
 
 
@@ -174,24 +157,24 @@ summary(dataset)
 
 dataset.is.factor <- unlist(lapply(names(dataset), function(col) is.factor(dataset[,col])))
 
-
 # basic summary statistics by the output variable
 
 library(psych)
 describeBy (dataset[,dataset.is.factor==FALSE], dataset$y)
 
-# Plot of all pairs of some continuous variables according to the class (Assessment variable)
-# (this plot shows how difficult this problem is)
-#pairs(dataset[,dataset.is.factor==FALSE], main = "Credit Scoring DataBase", col = (1:length(levels(dataset$y)))[unclass(dataset$y)])
 
 #### Feature selection analysis
+
+cont.vars = which(dataset.is.factor==FALSE)
+
+par (mfrow=c(3,4))
+for (i in 1:length(cont.vars)){
+  qqnorm(dataset[,cont.vars[i]], main=names(cont.vars)[i])
+}
 
 # Feature selection for continuous variables using Fisher's F
 
 pvalcon = NULL
-
-cont.vars = which(dataset.is.factor==FALSE)
-
 for (i in 1:length(cont.vars)) 
   pvalcon[i] = (oneway.test (dataset[,cont.vars[i]]~dataset$y))$p.value
 
@@ -200,7 +183,7 @@ row.names(pvalcon) = names(dataset)[cont.vars]
 
 as.matrix(sort(pvalcon[,1]))
 
-# Graphical representation of Assessment
+# Graphical representation of outpurt
 
 ncon = nrow(pvalcon)
 

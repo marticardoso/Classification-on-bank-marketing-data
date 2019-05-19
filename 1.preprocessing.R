@@ -39,13 +39,6 @@ summary(dataset)
 # so, it cannot be used for the predictive model
 dataset$duration <- NULL
 
-# Transform y to logical
-tmp <- as.logical(dataset$y)
-tmp[dataset$y == "yes"] <- TRUE
-tmp[dataset$y == "no"] <- FALSE
-dataset$y <- tmp;
-
-
 # Check factors
 dataset.is.numeric <- unlist(lapply(names(dataset), function(col) is.numeric(dataset[,col])))
 names(dataset.is.numeric) <- names(dataset)
@@ -203,6 +196,57 @@ dataset.is.numeric <- unlist(lapply(names(dataset), function(col) is.numeric(dat
 library(psych)
 describeBy (dataset[,dataset.is.numeric], dataset$y)
 
+##############################################
+# Feature selection analysis #################
+##############################################
+
+# First we apply a Fisher's F test to the continuous variables
+# (we are going to use the dataset with continuous vars)
+dataset.is.numeric <- unlist(lapply(names(dataset), function(col) is.numeric(dataset[,col])))
+cont.vars <- which(dataset.is.numeric==TRUE)
+
+pvalcon = NULL
+for (i in 1:length(cont.vars)) 
+  pvalcon[i] <- (oneway.test (dataset[,cont.vars[i]]~dataset$y))$p.value
+
+pvalcon <- matrix(pvalcon)
+row.names(pvalcon) <- names(dataset)[cont.vars]
+
+as.matrix(sort(pvalcon[,1]))
+# All p-values < 0.5 (except pdays), so we should keep all these continuous variables.
+# For the pdays, we decided to discretize it, so we will not use the continuous pdays var.
+
+# Graphical representation of outpurt
+ncon = nrow(pvalcon)
+par (mfrow=c(2,5))
+for (i in 1:nrow(pvalcon)) 
+{
+  barplot (tapply(dataset[,cont.vars[i]], dataset$y, function(x) mean(x, na.rm=TRUE)),main=paste("Means by",row.names(pvalcon)[i]), las=2, cex.names=1.25)
+  abline (h=mean(dataset[,cont.vars[i]]))
+  legend (0,mean(dataset[,cont.vars[i]]),"Global mean",bty="n") 
+}
+
+# Secondly, we apply a chisq test to the categorical variables
+
+dataset.is.factor <- unlist(lapply(names(dataset), function(col) is.factor(dataset[,col])))
+cat.vars <- which(dataset.is.factor==TRUE)
+cat.vars <- cat.vars[cat.vars!=20] # remove y variable
+pval = NULL
+for (i in 1:(length(cat.vars)))
+  pval[i] <- (chisq.test(table(dataset[,cat.vars[i]],dataset$y)))$p.value
+
+pval <- matrix(pval)
+row.names(pval) <- names(dataset)[cat.vars]
+as.matrix(sort(pval[,1]))
+
+# All variables except 'loan' and 'housing' have p-value < 0.05, so, we should keep them
+# But for loan and housing, we get p-value > 0.05, 
+# we cannot reject that the output and these variables are independents (no relation), 
+# so we remove them from the dataset
+
+dataset$loan <- NULL
+dataset$housing <- NULL
+
 ####################################################################
 # SAVE THE DATA SET
 ####################################################################
@@ -216,12 +260,14 @@ set.seed (104)
 dataset <- shuffle(dataset)
 dataset.source <- dataset
 
-d1.cols = c("age", "job", "marital", "education", "default", "housing", "loan", "contact", "month", "day_of_week",
+# We are going to save two datasets:
+# 1. Using all continuous variables
+# 2. Using all categorical variables
+
+d1.cols = c("age", "job", "marital", "education", "default", "contact", "month", "day_of_week",
              "log.campaign", "pdays.CAT", "previous", "poutcome", "emp.var.rate", "cons.price.idx", "cons.conf.idx",
              "euribor3m", "nr.employed", "y")
-# We are going to save two datasets:
-# 1. Using all continues variables
-# 2. Using all categorical variables
+
 
 dataset <- dataset.source[,d1.cols]
 
@@ -229,10 +275,10 @@ dataset <- dataset.source[,d1.cols]
 save(dataset, file = "bank-processed.Rdata")
 
 #DATASET 2
-d2.cols = c("age", "job", "marital", "education", "default", "housing", "loan", "contact", "month", "day_of_week",
+d2.cols = c("age", "job", "marital", "education", "default", "contact", "month", "day_of_week",
              "campaign.CAT", "pdays.CAT", "previous.CAT", "poutcome", "emp.var.rate.CAT", "cons.price.idx.CAT", "cons.conf.idx.CAT",
              "euribor3m.CAT", "nr.employed.CAT", "y")
-dataset.cat <- dataset.source[,d2.cols]
+dataset.v2 <- dataset.source[,d2.cols]
 
 # Save data set
-save(dataset.cat, file = "bank-processed-cat.Rdata")
+save(dataset.v2, file = "bank-processed-cat.Rdata")

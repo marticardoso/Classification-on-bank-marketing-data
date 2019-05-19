@@ -278,7 +278,7 @@ save(dataset, file = "bank-processed.Rdata")
 d2.cols = c("age", "job", "marital", "education", "default", "contact", "month", "day_of_week",
              "campaign.CAT", "pdays.CAT", "previous.CAT", "poutcome", "emp.var.rate.CAT", "cons.price.idx.CAT", "cons.conf.idx.CAT",
              "euribor3m.CAT", "nr.employed.CAT", "y")
-dataset.v2 <- dataset.source[,d2.cols]
+dataset.cat <- dataset.source[,d2.cols]
 
 # Save data set
-save(dataset.v2, file = "bank-processed-cat.Rdata")
+save(dataset.cat, file = "bank-processed-cat.Rdata")

@@ -19,7 +19,7 @@ load("bank-processed-cat.Rdata")
 
 # First, we split the dataset, and finally we apply the same split to dataset.cat
 
-set.seed (104)
+set.seed (1)
 # Shuffle the data
 shuffle <- function(data){
   data[sample(nrow(data)),]

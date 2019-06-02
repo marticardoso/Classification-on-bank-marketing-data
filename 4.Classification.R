@@ -4,7 +4,7 @@
 # - Marti Cardoso 
 # - Meysam Zamani
 
-# Part 3: 
+# Part 4: 
 # June 2019
 ####################################################################
 
@@ -15,7 +15,8 @@ setwd(".")
 
 library(MASS)
 library(class)
-library (e1071)
+library(e1071)
+library(TunePareto) # for generateCVRuns()
 library(glmnet)
 
 #Load preprocessed data
@@ -24,39 +25,62 @@ load("bank-processed-cat-train-test.Rdata")
 
 set.seed (104)
 
+#First we define some function, useful for the script
+
+# Function that compute the accuracy given prediction and real values
+compute.accuracy <- function (pred, real)
+{
+  ct <- table(Truth=real, Pred=pred)
+  round(100*(1-sum(diag(ct))/sum(ct)),2)
+}
+
+# Function that computes the harm coeficient given prediction and real values
+harm <- function (a,b) { 2/(1/a+1/b) }
+compute.harm <- function (pred, real)
+{
+  ct <- table(Truth=real, Pred=pred)
+  harm (prop.table(ct,1)[1,1], prop.table(ct,1)[2,2])
+}
+
+# Function that runs a k-fold-CV using:
+# - The generateModelAndPredict function to create the model and predict in each fold, 
+# - The goodness.func to compute the goodness of the current fold 
+run.k.fold.CV <- function(generateModelAndPredict, dataset, goodness.func= compute.accuracy, k = 10){
+  set.seed(1234)
+  CV.folds <- generateCVRuns (dataset.train$y, ntimes=1, nfold=k, stratified=TRUE)
+  acc = numeric(k)
+  for (j in 1:k)
+  {
+    print(j)
+    va <- unlist(CV.folds[[1]][[j]])
+    pred.va <- generateModelAndPredict(dataset[-va,], dataset[va,])
+    acc[j]<-goodness.func(pred.va, dataset[va,]$y)
+  }
+  return(acc)
+}
+
+
 ####################################################################
 # Logistic Regression
 ####################################################################
 
-run.logisticRegression <- function (dataset, newdata, P=0.5)
+run.logisticRegression <- function (dataset, P=0.5)
 {
-  glm.model <- glm (y~., dataset, family = binomial) 
-  #print(summary(glm.model))
+  generateModelAndPredict <- function(train, newdata){
+    glm.model <- glm (y~., train, family = binomial) 
+    preds = predict(glm.model, newdata, type="response")
+    preds[preds<P] <- 0
+    preds[preds>=P] <- 1
+    pred <- factor(preds, labels=c("no","yes"))
+  }
   
-  ## Compute training accuracy
-  train.pred <- NULL
-  train.pred[glm.model$fitted.values<P] <- 0
-  train.pred[glm.model$fitted.values>=P] <- 1
-  train.pred <- factor(train.pred, labels=c("no","yes"))
-  print('Train')
-  print(trainTable <- table(Truth=dataset$y,Pred=train.pred))
-  print(trainError <- 100*(1-sum(diag(trainTable))/(sum(trainTable))))
+  error = run.k.fold.CV(generateModelAndPredict,dataset, compute.harm)
   
-  ## Compute test accuracy
-  
-  preds <- predict (glm.model, newdata, type="response")
-  preds[preds<P] <- 0
-  preds[preds>=P] <- 1
-  preds <- factor(preds, labels=c("no","yes"))
-  print('Test')
-  print(testTable <- table(Truth=newdata$y,Pred=preds))
-  print(testError <- 100*(1-sum(diag(testTable))/sum(testTable)))
-  
-  list(model=glm.model,trainError=trainError, testError=testError)
+  mean(error)
 }
 
-glm.model <- run.logisticRegression(dataset.train, dataset.test)
-glm.model.cat <- run.logisticRegression(dataset.cat.train, dataset.cat.test)
+(glm.model.r <- run.logisticRegression(dataset.train, 0.3))
+(glm.model.cat.r <- run.logisticRegression(dataset.cat.train,0.3))
 
 ####################################################################
 # Ridge Regression and Lasso (logistic)

@@ -1,4 +1,11 @@
-
+#Use default lambdas (glmnet)
+get.default.lambdas <- function (dataset, alpha = 1, nlambda=25)
+{
+  x <- model.matrix(y~., dataset)[,-1]
+  y <- ifelse(dataset$y == "yes", 1, 0)
+  model <- glmnet(x, y, alpha = alpha,nlambda=nlambda, weights = compute.weights(dataset$y), family = "binomial")
+  return(model$lambda)
+}
 
 run.glmnet <- function (dataset, newdata, alpha = 1, P = 0.5)
 {

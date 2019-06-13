@@ -3,17 +3,17 @@
 #############################################
 
 # Function that compute the accuracy given prediction and real values
-compute.accuracy <- function (pred, real)
+accuracy <- function (pred, real)
 {
   ct <- table(Truth=real, Pred=pred)
-  round(100*(1-sum(diag(ct))/sum(ct)),2)
+  round(100*(sum(diag(ct))/sum(ct)),2)
 }
 
 # harmonic mean
 harm <- function (a,b) { 2/(1/a+1/b) }
 
-# Function that computes the F1 Score (performance mesure): the harmonic mean of precision and recall:
-compute.F1 <- function (pred, real)
+# Function that computes the F1 Score (performance mesure): the harmonic mean of precision and recall
+F1 <- function (pred, real)
 {
   ct <- table(Truth=real, Pred=pred)
   harm (prop.table(ct,1)[1,1], prop.table(ct,1)[2,2])
@@ -21,19 +21,41 @@ compute.F1 <- function (pred, real)
 
 # Function that runs a k-fold-CV using:
 # - The generateModelAndPredict function creates the model and predict in each fold, 
-# - The loss.func computes the goodness of the current fold 
-run.k.fold.CV <- function(generateModelAndPredict, dataset, loss.func= compute.accuracy, k = 10){
+# - The performance.metric computes the goodness of the current fold: accuracy or F1
+run.k.fold.CV <- function(generateModelAndPredict, dataset, performance.metric = c("accuracy","F1"), k = 10, trace = TRUE){
   set.seed(1234)
   CV.folds <- generateCVRuns (dataset$y, ntimes=1, nfold=k, stratified=TRUE)
-  acc = numeric(k)
+  
+  z = list() #Output
+  if("F1" %in% performance.metric) 
+    z$F1 = numeric(k)
+  if("accuracy" %in% performance.metric)
+    z$accuracy = numeric(k)
+  
+  if(trace)
+    print('Starting k-fold CV')
   for (j in 1:k)
   {
-    print(paste(c('Fold ',j)))
+    if(trace)
+      print(paste(c(' # Fold ',j)))
     va <- unlist(CV.folds[[1]][[j]])
     pred.va <- generateModelAndPredict(dataset[-va,], dataset[va,])
-    acc[j]<-loss.func(pred.va, dataset[va,]$y)
+    # Accuracy and F1
+    if("F1" %in% performance.metric) 
+      z$F1[j] = F1(pred.va, dataset[va,]$y)
+    if("accuracy" %in% performance.metric)
+      z$accuracy[j] = accuracy(pred.va, dataset[va,]$y)
   }
-  return(acc)
+  
+  if("F1" %in% performance.metric) {
+    z$F1.mean = mean(z$F1)
+    z$F1.sd = sd(z$F1)
+  }
+  if("accuracy" %in% performance.metric){
+    z$accuracy.mean = mean(z$accuracy)
+    z$accuracy.sd = sd(z$accuracy)
+  }
+  z
 }
 
 # Function that computes the weights of each class

@@ -33,11 +33,11 @@ run.k.fold.CV <- function(generateModelAndPredict, dataset, performance.metric =
     z$accuracy = numeric(k)
   
   if(trace)
-    print('Starting k-fold CV')
+    cat('Starting k-fold CV\n')
   for (j in 1:k)
   {
     if(trace)
-      print(paste(c(' # Fold ',j)))
+      print(paste(' # Fold ',j,"/",k))
     va <- unlist(CV.folds[[1]][[j]])
     pred.va <- generateModelAndPredict(dataset[-va,], dataset[va,])
     # Accuracy and F1

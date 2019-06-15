@@ -16,24 +16,28 @@ setwd(".")
 library(MASS)
 library(class)
 library(e1071)
-library(TunePareto) # for generateCVRuns()
+library(TunePareto)
 library(glmnet)
 library(class)
 library(nnet)
 library(ggplot2)
+library(e1071)
+library(tree)
+library(randomForest)
 
 #Load preprocessed data
 load("bank-processed-train-test.Rdata")
 load("bank-processed-cat-train-test.Rdata")
-
+load("D3.PCAMCA.dataset.Rdata")
+load("D4.MCA.dataset.Rdata")
 set.seed (104)
 
 #First we load some useful function for the model selection task
 source('modelSelectionUtils.R')
 
-mca.result <- mca(dataset.cat.train[,c(-1,-18)], 5)
-ds.mca <- data.frame(mca.result$rs)
-ds.mca$y <- dataset.cat.train$y
+#mca.result <- mca(dataset.cat.train[,c(-1,-18)], 5)
+#d4.mca.train <- data.frame(mca.result$rs)
+#d4.mca.train$y <- dataset.cat.train$y
 #predict(mca2,dataset.cat.test[,c(-1,-18)])
 
 
@@ -56,7 +60,8 @@ run.logisticRegression <- function (dataset,P=0.5)
 
 (logReg.d1 = run.logisticRegression(dataset.train))
 (logReg.d2 = run.logisticRegression(dataset.cat.train))
-(logReg.d3 = run.logisticRegression(df.mca))
+(logReg.d3 = run.logisticRegression(d3.pcamca.train))
+(logReg.d4 = run.logisticRegression(d4.mca.train))
 
 ####################################################################
 # Ridge Regression and Lasso (logistic)
@@ -71,7 +76,7 @@ run.glmnet <- function (dataset, lambda, alpha = 1, P = 0.5)
     weights = compute.weights(train$y)
     #Create dummy variables for categorical
     x <- model.matrix(y~., train)[,-1]
-
+    
     # Fit the final model on the training data
     model <- glmnet(x, train$y, alpha = alpha, weights = weights, family = "binomial", lambda=lambda)
     
@@ -86,23 +91,22 @@ run.glmnet <- function (dataset, lambda, alpha = 1, P = 0.5)
 # Try several lambdas
 run.glmnet.find.best.lambda <- function (dataset, lambda.v, alpha = 1, P = 0.5)
 {
-  #lambda.v <- get.default.lambdas(dataset,alpha)
-  lambda.F1 = numeric(length(lambda.v))
-  lambda.F1.sd = numeric(length(lambda.v))
+  results = list()
   for(i in 1:(length(lambda.v))){
     print(paste("lambda ", lambda.v[i]))
-    tmp <- run.glmnet(dataset, lambda=lambda.v[i], alpha= alpha, P=P)
-    lambda.F1[i] <- tmp$F1.mean
-    lambda.F1.sd[i] <- tmp$F1.sd
+    results[[i]] <- run.glmnet(dataset, lambda=lambda.v[i], alpha= alpha, P=P)
   }
-  max.lambda.id <- which.max(lambda.F1)[1]
+  z <- list(lambda=lambda.v)
+  z$lambda.F1 <- unlist(lapply(results,function(t) t$F1.mean))
+  z$lambda.F1.sd <- unlist(lapply(results,function(t) t$F1.sd))
+  z$lambda.accuracy <- unlist(lapply(results,function(t) t$accuracy.mean))
+  z$lambda.accuracy.sd <- unlist(lapply(results,function(t) t$accuracy.sd))
   
-  return(list(lambda=lambda.v, 
-              lambda.F1=lambda.F1, 
-              lambda.F1.sd = lambda.F1.sd,
-              max.lambda=lambda.v[max.lambda.id],
-              max.F1 = lambda.F1[max.lambda.id],
-              max.F1.sd = lambda.F1.sd[max.lambda.id]))
+  max.lambda.id <- which.max(z$lambda.F1)[1]
+  z$max.lambda=lambda.v[max.lambda.id]
+  z$max.F1 = z$lambda.F1[max.lambda.id]
+  z$max.F1.sd = z$lambda.F1.sd[max.lambda.id]
+  z
 }
 
 lambda.max <- 100
@@ -110,33 +114,42 @@ lambda.min <- 1e-4
 n.lambdas <- 50
 lambda.v <- exp(seq(log(lambda.min),log(lambda.max),length=n.lambdas))
 
-glmnet.Lasso = run.glmnet.find.best.lambda(dataset.train,lambda.v,alpha=1)
-glmnet.ridge = run.glmnet.find.best.lambda(dataset.train,lambda.v,alpha=0)
+d1.Lasso = run.glmnet.find.best.lambda(dataset.train,lambda.v,alpha=1)
+d1.ridge = run.glmnet.find.best.lambda(dataset.train,lambda.v,alpha=0)
 
-glmnet.cat.Lasso = run.glmnet.find.best.lambda(dataset.cat.train,lambda.v,alpha=1)
-glmnet.cat.ridge = run.glmnet.find.best.lambda(dataset.cat.train,lambda.v,alpha=0)
+d2.Lasso = run.glmnet.find.best.lambda(dataset.cat.train,lambda.v,alpha=1)
+d2.ridge = run.glmnet.find.best.lambda(dataset.cat.train,lambda.v,alpha=0)
 
-d4.mca.Lasso = run.glmnet.find.best.lambda(df.mca,lambda.v,alpha=1)
-d4.mca.ridge = run.glmnet.find.best.lambda(df.mca,lambda.v,alpha=0)
+d3.Lasso = run.glmnet.find.best.lambda(d3.pcamca.train,lambda.v,alpha=1)
+d3.ridge = run.glmnet.find.best.lambda(d3.pcamca.train,lambda.v,alpha=0)
 
-save(glmnet.Lasso,glmnet.ridge,glmnet.cat.Lasso,glmnet.cat.ridge, file = "glmnet-results.Rdata")
-load("glmnet-results.Rdata")
+d4.Lasso = run.glmnet.find.best.lambda(d4.mca.train,lambda.v,alpha=1)
+d4.ridge = run.glmnet.find.best.lambda(d4.mca.train,lambda.v,alpha=0)
+
+save(d1.Lasso,d1.ridge,d2.Lasso,d2.ridge,d3.Lasso,d3.ridge,d4.Lasso,d4.ridge, file = "tmp/glmnet-results.Rdata")
+load("tmp/glmnet-results.Rdata")
 #Plot results
-df <- data.frame(lambda=c(lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v),
-                 F1=c(glmnet.Lasso$lambda.F1, glmnet.ridge$lambda.F1, 
-                      glmnet.cat.Lasso$lambda.F1, glmnet.cat.ridge$lambda.F1,
-                      d4.mca.Lasso$lambda.F1,d4.mca.ridge$lambda.F1), 
-                 sd=c(glmnet.Lasso$lambda.F1.sd, glmnet.ridge$lambda.F1.sd, 
-                      glmnet.cat.Lasso$lambda.F1.sd, glmnet.cat.ridge$lambda.F1.sd,
-                      d4.mca.Lasso$lambda.F1.sd,d4.mca.ridge$lambda.F1.sd),
+df <- data.frame(lambda=c(lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v),
+                 F1=c(d1.Lasso$lambda.F1, d1.ridge$lambda.F1, 
+                      d2.Lasso$lambda.F1, d2.ridge$lambda.F1,
+                      d3.Lasso$lambda.F1, d3.ridge$lambda.F1,
+                      d4.Lasso$lambda.F1, d4.ridge$lambda.F1), 
+                 sd=c(d1.Lasso$lambda.F1.sd, d1.ridge$lambda.F1.sd, 
+                      d2.Lasso$lambda.F1.sd, d2.ridge$lambda.F1.sd,
+                      d3.Lasso$lambda.F1.sd, d3.ridge$lambda.F1.sd,
+                      d4.Lasso$lambda.F1.sd, d4.ridge$lambda.F1.sd),
                  group=c(rep('D1 Lasso',n.lambdas),rep('D1 Ridge',n.lambdas),
                          rep('D2 Lasso',n.lambdas),rep('D2 Ridge',n.lambdas),
+                         rep('D3 (PCA+MCA) Lasso',n.lambdas),rep('D3 (PCA+MCA) Ridge',n.lambdas),
                          rep('D4 (MCA) Lasso',n.lambdas),rep('D4 (MCA) Ridge',n.lambdas)))
 
-ggplot(df[df$F1>0.5,], aes(x=log(lambda), y=F1, group=group, color=group)) + 
-  geom_errorbar(aes(ymin=F1-sd, ymax=F1+sd), width=.01) +
-  scale_y_continuous(name = "F1", limits = c(0.6, 0.8)) +
-  geom_line() + geom_point()+theme_minimal()
+ggplot(df[df$F1>0.5,], aes(x=lambda, y=F1, group=group, color=group)) + 
+  scale_y_continuous(name = "F1", limits = c(0.65, 0.75)) + scale_x_continuous(trans='log2')+
+  geom_line() + theme_minimal()
+
+ggplot(df[df$F1>0.5,], aes(x=lambda, y=sd, group=group, color=group)) + 
+  scale_y_continuous(name = "sd(F1)",limits = c(0, 0.028)) + scale_x_continuous(trans='log2')+
+  geom_line() + theme_minimal()
 
 ####################################################################
 # LDA
@@ -145,17 +158,92 @@ ggplot(df[df$F1>0.5,], aes(x=log(lambda), y=F1, group=group, color=group)) +
 run.lda <- function (dataset)
 {
   createModelAndPredict <- function(train, newdata){
-    lda.model <- lda(y~., train) #Lda computes prior from data
+    lda.model <- lda(y~., train,prior=c(1,1)/2) 
     test.pred <- predict (lda.model, newdata)$class
     return(test.pred)
+    #test.prob <- predict (lda.model, newdata)$posterior[,2]
+    #return(probabilityToFactor(test.prob,P))
   }
   run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
 }
 
 (d1.lda = run.lda(dataset.train))
-(d2.cat.lda = run.lda(dataset.cat.train))
-(d4.mca.lda = run.lda(df.mca))
+(d2.lda = run.lda(dataset.cat.train))
+(d3.lda = run.lda(d3.pcamca.train))
+(d4.lda = run.lda(d4.mca.train))
 
+####################################################################
+# QDA
+####################################################################
+
+run.qda <- function (dataset)
+{
+  createModelAndPredict <- function(train, newdata){
+    qda.model <- qda(y~., train,prior=c(1,1)/2) 
+    test.pred <- predict (qda.model, newdata)$class
+    return(test.pred)
+  }
+  run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
+}
+
+#(d1.qda = run.qda(dataset.train))
+#(d2.qda = run.qda(dataset.cat.train))
+(d3.qda = run.qda(d3.pcamca.train))
+(d4.qda = run.qda(d4.mca.train))
+
+####################################################################
+# knn
+####################################################################
+
+run.knn <- function (dataset, k)
+{
+  createModelAndPredict <- function(train, newdata){
+    x.train <- model.matrix(y~., train)[,-1]
+    x.test <- model.matrix(y~., newdata)[,-1]
+    pred <- knn(x.train, x.test, train$y, k=k)
+    pred
+  }
+  run.k.fold.CV(createModelAndPredict,dataset, performance.metric=c("accuracy","F1"))
+}
+
+# Try several ks
+optimize.knn.k <- function (dataset, ks = seq(1,15,2))
+{
+  results = list()
+  for(i in 1:(length(ks))){
+    print(paste("k = ", ks[i]))
+    results[[i]] <- run.knn(dataset, ks[i])
+  }
+  z <- list(ks=ks,results=results)
+  z$F1 <- unlist(lapply(results,function(t) t$F1.mean))
+  z$F1.sd <- unlist(lapply(results,function(t) t$F1.sd))
+  z$accuracy <- unlist(lapply(results,function(t) t$accuracy.mean))
+  z$accuracy.sd <- unlist(lapply(results,function(t) t$accuracy.sd))
+  
+  max.id <- which.max(z$F1)[1]
+  z$max.k=ks[max.id]
+  z$max.F1 = z$F1[max.id]
+  z$max.F1.sd = z$F1.sd[max.id]
+  z
+}
+(d1.knn <- optimize.knn.k(dataset.train))
+#(d2.knn <- optimize.knn.k(dataset.cat.train))
+(d3.knn <- optimize.knn.k(d3.pcamca.train))
+(d4.knn <- optimize.knn.k(d4.mca.train))
+
+save(d1.knn,d3.knn,d4.knn, file = "tmp/knn-results.Rdata")
+load("tmp/knn-results.Rdata")
+#Plot results
+df <- data.frame(k=c(d3.knn$ks,d4.knn$ks, d1.knn$ks),
+                 F1=c(d3.knn$F1,    d4.knn$F1, d1.knn$F1), 
+                 acc=c(d3.knn$accuracy, d4.knn$accuracy, d1.knn$accuracy),
+                 group=c(rep('D3',length(d3.knn$ks)),rep('D4',length(d3.knn$ks)),rep('D1',length(d1.knn$ks))))
+
+ggplot(df, aes(x=k, y=F1, group=group, color=group)) + 
+  scale_y_continuous(name = "F1")+ geom_line() + theme_minimal()
+
+ggplot(df, aes(x=k, y=acc, group=group, color=group)) + 
+  scale_y_continuous(name = "Accuracy") + geom_line() + theme_minimal()
 
 ####################################################################
 # Naïve Bayes
@@ -164,8 +252,7 @@ run.lda <- function (dataset)
 run.NaiveBayes <- function (dataset, laplace=0)
 {
   createModelAndPredict <- function(train, newdata){
-    weights = compute.weights(train$y)
-    model <- naiveBayes(y ~ ., data = train, weights=weights,laplace=laplace)
+    model <- naiveBayes(y ~ ., data = train, laplace=laplace)
     test.pred <- predict (model, newdata)
     return(test.pred)
   }
@@ -173,25 +260,36 @@ run.NaiveBayes <- function (dataset, laplace=0)
   run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
 }
 
-(naive.F1 = run.NaiveBayes(dataset.train))
-(naive.cat.F1 = run.NaiveBayes(dataset.cat.train))
+(d1.naive = run.NaiveBayes(dataset.train))
+(d1.naive.lapl = run.NaiveBayes(dataset.train,laplace=1))
 
-(naive.lapl.F1 = run.NaiveBayes(dataset.train,laplace=1))
-(naive.lapl.cat.F1 = run.NaiveBayes(dataset.cat.train,laplace=1))
+(d2.naive = run.NaiveBayes(dataset.cat.train))
+(d2.naive.lapl = run.NaiveBayes(dataset.cat.train,laplace=1))
 
-(d4.mca.naive = run.NaiveBayes(df.mca))
-(d4.mca.naive.lapl = run.NaiveBayes(df.mca,laplace=1))
+(d3.naive = run.NaiveBayes(d3.pcamca.train))
+(d3.naive.lapl = run.NaiveBayes(d3.pcamca.train,laplace=1))
+
+(d4.naive = run.NaiveBayes(d4.mca.train))
+(d4.naive.lapl = run.NaiveBayes(d4.mca.train,laplace=1))
+
+ls = c(0:10)
+result = numeric(length(ls))
+for(i in 1:length(ls)){
+  result[i] = run.NaiveBayes(dataset.train,laplace=ls[i])$F1.mean
+}
+plot(ls,result,type='l')
 
 ####################################################################
 # Multilayer Perceptrons
 ####################################################################
 
-
 run.MLP <- function (dataset, nneurons, decay=0)
 {
   createModelAndPredict <- function(train, newdata){
     weights = compute.weights(train$y)
-    model <- nnet(y ~., data = train, weights = weights, size=nneurons, maxit=200, decay=decay, MaxNWts=10000)
+    model <- nnet(y ~., data = train, weights = weights, size=nneurons, 
+                  maxit=100, decay=decay, MaxNWts=10000, trace=FALSE)
+    print( c("Weights",length(model$wts)))
     test.pred <- predict (model, newdata)
     return(probabilityToFactor(test.pred))
   }
@@ -199,42 +297,37 @@ run.MLP <- function (dataset, nneurons, decay=0)
   run.k.fold.CV(createModelAndPredict,dataset, performance.metric=c("accuracy","F1"))
 }
 
+optimize.decay <- function(dataset, nneurons, decays=c(0,10^seq(-3,0,by=0.1))){
+  results <- list()
+  for (i in 1:(length(decays)))
+  { 
+    print(paste("Decay: ",decays[i]))
+    results[[i]] <- run.MLP(dataset,nneurons, decays[i])
+  }
+  z = list(decays = decays, results=results)
+  z$F1 <- unlist(lapply(results,function(t) t$F1.mean))
+  z$F1.sd <- unlist(lapply(results,function(t) t$F1.sd))
+  z$accuracy <- unlist(lapply(results,function(t) t$accuracy.mean))
+  max.idx <- which.max(z$F1)[1]
+  z$max.decay <- z$decays[max.idx]
+  z$max.F1 <- z$F1[max.idx]
+  z
+}
+
 # We fix a large number of hidden units in one hidden layer, and explore different regularization values
-nneurons <- 10
-decays <- 10^seq(-3,0,by=0.1)
-d1.mlp.F1 <- numeric(length(decays))
-d1.mlp.F1.sd <- numeric(length(decays))
-for(i in 1:(length(decays))){
-  print(paste("Decay ", decays[i]))
-  tmp = run.MLP(dataset.train,nneurons,decay=decays[i])
-  d1.mlp.F1[i] = tmp$F1.mean
-  d1.mlp.F1.sd[i] = tmp$F1.sd
+nneurons <- 20
+decays <- c(0,10^seq(-3,0,by=1))
 
-}
-
-d2.mlp.F1 <- numeric(length(decays))
-d2.mlp.F1.sd <- numeric(length(decays))
-for(i in 1:(length(decays))){
-  print(paste("Decay ", decays[i]))
-  tmp = run.MLP(dataset.cat.train,nneurons,decay=decays[i])
-  d2.mlp.F1[i] = tmp$F1.mean
-  d2.mlp.F1.sd[i] = tmp$F1.sd
-}
-
-d4.mlp.F1 <- numeric(length(decays))
-d4.mlp.F1.sd <- numeric(length(decays))
-for(i in 1:(length(decays))){
-  print(paste("Decay ", decays[i]))
-  tmp = run.MLP(df.mca,nneurons,decay=decays[i])
-  d4.mlp.F1[i] = tmp$F1.mean
-  d4.mlp.F1.sd[i] = tmp$F1.sd
-}
+(d1.mlp <- optimize.decay(dataset.train,    nneurons, decays))
+(d2.mlp <- optimize.decay(dataset.cat.train,nneurons, decays))
+(d3.mlp <- optimize.decay(d3.pcamca.train,  nneurons, decays))
+(d3.mlp <- optimize.decay(d4.pca.train,     nneurons, decays))
 
 ####################################################################
 # SVM
 ####################################################################
 
-library(e1071)
+
 run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
 {
   createModelAndPredict <- function(train, newdata){
@@ -255,23 +348,20 @@ run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
 #Run several C values
 optimize.C <- function (dataset, Cs = 10^seq(-2,3), which.kernel="linear", gamma=0.5)
 {
-  z <- list()
-  z$Cs <- Cs
-  z$F1 <- numeric(length(Cs))
-  z$F1.sd <- numeric(length(Cs))
-  z$accuracy <- numeric(length(Cs))
-  z$accuracy.sd <- numeric(length(Cs))
+  results <- list()
+  
   for(i in 1:(length(Cs))){
     print(paste("C ", Cs[i]))
-    tmp <- run.SVM(dataset,C=Cs[i], which.kernel=which.kernel, gamma=gamma)
-    z$F1 <- tmp$F1.mean
-    z$F1.sd[i] <- tmp$F1.sd
-    z$accuracy <- tmp$accuracy.mean
-    z$accuracy.sd[i] <- tmp$accuracy.sd
+    results[[i]] <- run.SVM(dataset,C=Cs[i], which.kernel=which.kernel, gamma=gamma)
   }
   
+  z = list(Cs = Cs, results=results)
   
-  max.C.idx <- which.max(z$results.F1)[1]
+  z$F1 <- unlist(lapply(results,function(t) t$F1.mean))
+  z$F1.sd <- unlist(lapply(results,function(t) t$F1.sd))
+  z$accuracy <- unlist(lapply(results,function(t) t$accuracy.mean))
+  
+  max.C.idx <- which.max(z$F1)[1]
   z$max.C <-Cs[max.C.idx]
   z$max.F1 <- z$F1[max.C.idx]
   z$max.F1.sd <- z$F1.sd[max.C.idx]
@@ -280,23 +370,28 @@ optimize.C <- function (dataset, Cs = 10^seq(-2,3), which.kernel="linear", gamma
 
 #Linear kernel
 Cs <- 10^seq(-2,3)
-svm.lin.d1.F1 <- optimize.C(dataset.train,     Cs, which.kernel="linear")
-svm.lin.d2.F1 <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
-
-d4.svm.lin.F1 <- optimize.C(df.mca, c(0.1), which.kernel="linear")
+d1.svm.lin <- optimize.C(dataset.train,     Cs, which.kernel="linear")
+d1.svm.lin <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
+d3.svm.lin <- optimize.C(d3.pcamca.train  , Cs, which.kernel="linear")
+d4.svm.lin <- optimize.C(d4.mca.train     , Cs, which.kernel="linear")
 
 #Polinomial 2
-svm.poly2.d1.F1 <- optimize.C(dataset.train,     Cs, which.kernel="poly.2")
-svm.poly2.d2.F1 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.2")
+d1.svm.poly2 <- optimize.C(dataset.train,     Cs, which.kernel="poly.2")
+d2.svm.poly2 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.2")
+d3.svm.poly2 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.2")
+d4.svm.poly2 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.2")
 
 #Polinomial 3
-svm.poly2.d1.F1 <- optimize.C(dataset.train,     Cs, which.kernel="poly.3")
-svm.poly2.d2.F1 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.3")
-
+d1.svm.poly3 <- optimize.C(dataset.train,     Cs, which.kernel="poly.3")
+d2.svm.poly3 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.3")
+d3.svm.poly3 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.3")
+d4.svm.poly3 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.3")
 
 #RBF
-svm.RBF.d1.F1 <- optimize.C(dataset.train,     Cs, which.kernel="poly.3")
-svm.RBF.d2.F1 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.3")
+d1.svm.RBF <- optimize.C(dataset.train,     Cs, which.kernel="radial")
+d2.svm.RBF <- optimize.C(dataset.cat.train, Cs, which.kernel="radial")
+d3.svm.RBF <- optimize.C(d3.pcamca.train,   Cs, which.kernel="radial")
+d4.svm.RBF <- optimize.C(d4.mca.train,      Cs, which.kernel="radial")
 
 gammas <- 2^seq(-3,4)
 svm.RBF.d1.g.F1 <- numeric(length(gammas))
@@ -313,27 +408,25 @@ for (i in 1:(length(gammas)))#Gamma
 # Tree
 ####################################################################
 
-library(tree)
 run.tree <- function (dataset)
 {
   createModelAndPredict <- function(train, newdata){
-    model <- tree(y ~ ., data=train)
+    weights = compute.weights(train$y)
+    model <- tree(y ~ ., weights= weights, data=train)
     test.pred <- predict (model, newdata, type="class")
     return(test.pred)
   }
-  
-  F1.by.fold = run.k.fold.CV(createModelAndPredict, dataset, performance.metric=F1)
-  
-  return(list(F1.mean=mean(F1.by.fold), F1.sd=sd(F1.by.fold)))
+  run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
 }
-(run.tree(dataset.train))
-(run.tree(dataset.cat.train))
+(d1.tree = run.tree(dataset.train))
+(d2.tree = run.tree(dataset.cat.train))
+(d3.tree = run.tree(d3.pcamca.train))
+(d4.tree = run.tree(d4.mca.train))
 
 ####################################################################
 # Random forest
 ####################################################################
 
-library(randomForest)
 run.randomForest <- function (dataset, ntree=100)
 {
   createModelAndPredict <- function(train, newdata){
@@ -343,38 +436,39 @@ run.randomForest <- function (dataset, ntree=100)
     test.pred <- predict (model, newdata, type="class")
     return(test.pred)
   }
-  
-  F1.by.fold = run.k.fold.CV(createModelAndPredict, dataset, performance.metric=F1)
-  
-  return(list(F1.mean=mean(F1.by.fold), F1.sd=sd(F1.by.fold)))
+  run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
 }
 
 #Run severl ntrees
-optimize.ntrees <- function(dataset){
-  ntrees <- round(10^seq(1,3,by=0.2))
-  results <- numeric(length(ntrees))
+optimize.ntrees <- function(dataset, ntrees=round(10^seq(1,2,by=0.2))){
+  results <- list()
   for (i in 1:(length(ntrees)))
   { 
-    print(paste("ntrees: ",nt))
-    results[i] <- run.randomForest(dataset,ntrees[i])$F1.mean
+    print(paste("ntrees: ",ntrees[i]))
+    results[[i]] <- run.randomForest(dataset,ntrees[i])
   }
-  max.ntrees.idx <- which.max(results)[1]
-  
-  return(list(ntrees=ntrees, 
-              F1= results, 
-              max.ntrees= F1[max.ntrees.idx],
-              max.F1 = results.F1[max.ntrees.idx]))
+  z = list(ntrees = ntrees)
+  z$F1 <- unlist(lapply(results,function(t) t$F1.mean))
+  z$accuracy <- unlist(lapply(results,function(t) t$accuracy.mean))
+  max.idx <- which.max(z$F1)[1]
+  z$max.ntrees <- z$ntrees[max.idx]
+  z$max.F1 <- z$F1[max.idx]
+  z
 }
-run.randomForest(dataset.train)
-optimize.ntrees(dataset.train)
+ntrees= round(10^seq(1,2,by=0.2))
+(d1.randomForest = optimize.ntrees(dataset.train, ntrees))
+(d2.randomForest = optimize.ntrees(dataset.cat.train, ntrees))
+(d3.randomForest = optimize.ntrees(d3.pcamca.train, ntrees))
+(d4.randomForest = optimize.ntrees(d4.mca.train, ntrees))
 
 
-####################################################################
-# knn
-####################################################################
+df <- data.frame(ntree=rep(ntrees,4),
+                 F1=c(d1.randomForest$F1, d2.randomForest$F1, d3.randomForest$F1, d4.randomForest$F1), 
+                 accuracy=c(d1.randomForest$accuracy, d2.randomForest$accuracy, d3.randomForest$accuracy, d4.randomForest$accuracy), 
+                 group=c(rep('D1',length(ntrees)),rep('D2',length(ntrees)), rep('D3',length(ntrees)),rep('D4',length(ntrees))))
 
-####################################################################
-# RBF-NN
-####################################################################
-
+ggplot(df, aes(x=ntree, y=F1, group=group, color=group)) + 
+  scale_y_continuous(name = "F1", limits = c(0.65, 0.75)) +
+  scale_x_continuous(trans='log2') +
+  geom_line() + geom_point()+theme_minimal()
 

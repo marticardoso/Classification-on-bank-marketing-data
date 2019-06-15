@@ -123,3 +123,36 @@ run.NaiveBayes <- function (dataset, newdata)
 lda.model <- run.NaiveBayes(dataset.train, dataset.test)
 lda.model.cat <- run.NaiveBayes(dataset.cat.train, dataset.cat.test)
 
+
+## OPTIMIZE P
+optimize.P <- function(dataset, Ps=seq(0.3,0.7,0.05)){
+  results <- list()
+  for (i in 1:(length(Ps)))
+  { 
+    print(paste("P: ",Ps[i]))
+    results[[i]] <- run.logisticRegression(dataset,Ps[i])
+  }
+  z = list(Ps = Ps)
+  z$F1 <- unlist(lapply(results,function(t) t$F1.mean))
+  z$F1.sd <- unlist(lapply(results,function(t) t$F1.sd))
+  z$accuracy <- unlist(lapply(results,function(t) t$accuracy.mean))
+  max.P.idx <- which.max(z$F1)[1]
+  z$max.P <- z$ntrees[max.P.idx]
+  z$max.F1 <- z$F1[max.P.idx]
+  z
+}
+Ps=seq(0.35,0.65,0.05)
+(logReg.d1 = optimize.P(dataset.train,Ps))
+(logReg.d2 = optimize.P(dataset.cat.train,Ps))
+(logReg.d3 = optimize.P(d3.pcamca.train,Ps))
+(logReg.d4 = optimize.P(d4.mca.train,Ps))
+
+df <- data.frame(Ps=rep(Ps,4),
+                 F1=c(logReg.d1$F1, logReg.d2$F1, logReg.d3$F1, logReg.d4$F1), 
+                 accuracy=c(logReg.d1$accuracy, logReg.d2$accuracy, logReg.d3$accuracy, logReg.d4$accuracy), 
+                 group=c(rep('D1',length(Ps)),rep('D2',length(Ps)), rep('D3',length(Ps)),rep('D4',length(Ps))))
+
+ggplot(df, aes(x=Ps, y=F1, group=group, color=group)) + 
+  scale_y_continuous(name = "F1", limits = c(0.6, 0.75)) +
+  scale_x_continuous(trans='log2') +
+  geom_line() + geom_point()+theme_minimal()

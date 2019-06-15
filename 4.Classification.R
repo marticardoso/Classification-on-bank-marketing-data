@@ -331,12 +331,12 @@ decays <- c(0,10^seq(-3,0,by=1))
 run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
 {
   createModelAndPredict <- function(train, newdata){
-    weights = compute.weights(train$y)
+    class.weights <- nrow(train)/table(train$y) #Give more weights to YES
     switch(which.kernel,
-           linear={model <- svm(y~., train, type="C-classification", cost=C, kernel="linear", scale = FALSE)},
-           poly.2={model <- svm(y~., train, type="C-classification", cost=C, kernel="polynomial", degree=2, coef0=1, scale = FALSE)},
-           poly.3={model <- svm(y~., train, type="C-classification", cost=C, kernel="polynomial", degree=3, coef0=1, scale = FALSE)},
-           RBF=   {model <- svm(y~., train, type="C-classification", cost=C, kernel="radial", gamma=gamma, scale = FALSE)},
+           linear={model <- svm(y~., train, type="C-classification", cost=C, class.weights=class.weights, kernel="linear", scale = FALSE)},
+           poly.2={model <- svm(y~., train, type="C-classification", cost=C, class.weights=class.weights, kernel="polynomial", degree=2, coef0=1, scale = FALSE)},
+           poly.3={model <- svm(y~., train, type="C-classification", cost=C, class.weights=class.weights, kernel="polynomial", degree=3, coef0=1, scale = FALSE)},
+           RBF=   {model <- svm(y~., train, type="C-classification", cost=C, class.weights=class.weights, kernel="radial", gamma=gamma, scale = FALSE)},
            stop("Enter one of 'linear', 'poly.2', 'poly.3', 'radial'"))
     test.pred <- predict (model, newdata)
     return(test.pred)
@@ -369,11 +369,14 @@ optimize.C <- function (dataset, Cs = 10^seq(-2,3), which.kernel="linear", gamma
 }
 
 #Linear kernel
-Cs <- 10^seq(-2,3)
+Cs <- 10^seq(-3,0)
 d1.svm.lin <- optimize.C(dataset.train,     Cs, which.kernel="linear")
 d1.svm.lin <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
 d3.svm.lin <- optimize.C(d3.pcamca.train  , Cs, which.kernel="linear")
 d4.svm.lin <- optimize.C(d4.mca.train     , Cs, which.kernel="linear")
+
+
+run.SVM(d3.pcamca.train, C=0.01, which.kernel="linear")
 
 #Polinomial 2
 d1.svm.poly2 <- optimize.C(dataset.train,     Cs, which.kernel="poly.2")
@@ -388,10 +391,10 @@ d3.svm.poly3 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.3")
 d4.svm.poly3 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.3")
 
 #RBF
-d1.svm.RBF <- optimize.C(dataset.train,     Cs, which.kernel="radial")
-d2.svm.RBF <- optimize.C(dataset.cat.train, Cs, which.kernel="radial")
-d3.svm.RBF <- optimize.C(d3.pcamca.train,   Cs, which.kernel="radial")
-d4.svm.RBF <- optimize.C(d4.mca.train,      Cs, which.kernel="radial")
+d1.svm.RBF <- optimize.C(dataset.train,     Cs, which.kernel="RBF")
+d2.svm.RBF <- optimize.C(dataset.cat.train, Cs, which.kernel="RBF")
+d3.svm.RBF <- optimize.C(d3.pcamca.train,   Cs, which.kernel="RBF")
+d4.svm.RBF <- optimize.C(d4.mca.train,      Cs, which.kernel="RBF")
 
 gammas <- 2^seq(-3,4)
 svm.RBF.d1.g.F1 <- numeric(length(gammas))

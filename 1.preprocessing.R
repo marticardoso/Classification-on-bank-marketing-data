@@ -247,6 +247,18 @@ as.matrix(sort(pval[,1]))
 dataset$loan <- NULL
 dataset$housing <- NULL
 
+
+
+####################
+## Standarization ##
+####################
+
+# The standarization step will take place in the second script. This is because we standardize the data after 
+# the split train-test.
+# So, we standardize the using only the training set, and then we apply the same transformation to the test set
+# (if not the test set would have some influence on the training standarization)
+
+
 ####################################################################
 # SAVE THE DATA SET
 ####################################################################

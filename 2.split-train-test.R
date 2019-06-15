@@ -39,6 +39,22 @@ dataset.train <- rbind(dataset.y.Yes[dataset.y.Yes.train.idx,],
 dataset.test <- rbind(dataset.y.Yes[-dataset.y.Yes.train.idx,],
                       dataset.y.No[-dataset.y.No.train.idx,])
 
+####################
+## Standarization ##
+####################
+
+# We standardize the data using the training set, and then apply the same transformation to the test set
+# (if not the test set would have some influence on the training standarization)
+num.vars <- which(unlist(lapply(names(dataset.train), function(col) is.numeric(dataset.train[,col]))))
+
+for(i in num.vars){
+  tmp <- scale(dataset.train[,i])
+  col.mean <- mean(dataset.train[,i])
+  col.sd <- sd(dataset.train[,i])
+  dataset.train[,i] <- (dataset.train[,i]-col.mean)/col.sd
+  dataset.test[,i] <- (dataset.test[,i]-col.mean)/col.sd
+}
+
 #Save data
 save(dataset.train, dataset.test, file = "bank-processed-train-test.Rdata")
 

@@ -28,6 +28,7 @@ library(randomForest)
 #Load preprocessed data
 load("bank-processed-train-test.Rdata")
 load("bank-processed-cat-train-test.Rdata")
+dataset.cat.train$age <- scale(dataset.cat.train$age)
 load("D3.PCAMCA.dataset.Rdata")
 load("D4.MCA.dataset.Rdata")
 set.seed (104)
@@ -331,7 +332,7 @@ decays <- c(0,10^seq(-3,0,by=1))
 run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
 {
   createModelAndPredict <- function(train, newdata){
-    class.weights <- nrow(train)/table(train$y) #Give more weights to YES
+    class.weights <- 1-table(train$y)/nrow(train) #Give more weights to YES
     switch(which.kernel,
            linear={model <- svm(y~., train, type="C-classification", cost=C, class.weights=class.weights, kernel="linear", scale = FALSE)},
            poly.2={model <- svm(y~., train, type="C-classification", cost=C, class.weights=class.weights, kernel="polynomial", degree=2, coef0=1, scale = FALSE)},
@@ -342,7 +343,7 @@ run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
     return(test.pred)
   }
   
-  run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
+  run.k.fold.CV(createModelAndPredict, dataset, k=8, performance.metric=c("accuracy","F1"))
 }
 
 #Run several C values
@@ -369,14 +370,12 @@ optimize.C <- function (dataset, Cs = 10^seq(-2,3), which.kernel="linear", gamma
 }
 
 #Linear kernel
-Cs <- 10^seq(-3,0)
+Cs <- 10^seq(-2,1)
 d1.svm.lin <- optimize.C(dataset.train,     Cs, which.kernel="linear")
-d1.svm.lin <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
+d2.svm.lin <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
 d3.svm.lin <- optimize.C(d3.pcamca.train  , Cs, which.kernel="linear")
 d4.svm.lin <- optimize.C(d4.mca.train     , Cs, which.kernel="linear")
 
-
-run.SVM(d3.pcamca.train, C=0.01, which.kernel="linear")
 
 #Polinomial 2
 d1.svm.poly2 <- optimize.C(dataset.train,     Cs, which.kernel="poly.2")

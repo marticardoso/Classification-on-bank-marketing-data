@@ -322,7 +322,7 @@ decays <- c(0,10^seq(-3,0,by=1))
 (d1.mlp <- optimize.decay(dataset.train,    nneurons, decays))
 (d2.mlp <- optimize.decay(dataset.cat.train,nneurons, decays))
 (d3.mlp <- optimize.decay(d3.pcamca.train,  nneurons, decays))
-(d3.mlp <- optimize.decay(d4.pca.train,     nneurons, decays))
+(d4.mlp <- optimize.decay(d4.mca.train,     nneurons, decays))
 
 ####################################################################
 # SVM
@@ -343,7 +343,7 @@ run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
     return(test.pred)
   }
   
-  run.k.fold.CV(createModelAndPredict, dataset, k=8, performance.metric=c("accuracy","F1"))
+  run.k.fold.CV(createModelAndPredict, dataset, k=10, performance.metric=c("accuracy","F1"))
 }
 
 #Run several C values
@@ -370,11 +370,31 @@ optimize.C <- function (dataset, Cs = 10^seq(-2,3), which.kernel="linear", gamma
 }
 
 #Linear kernel
-Cs <- 10^seq(-2,1)
-d1.svm.lin <- optimize.C(dataset.train,     Cs, which.kernel="linear")
+Cs <- 10^seq(-3,1)
+d1.svm.lin.tmp <- optimize.C(dataset.train,     c(1e2), which.kernel="linear")
 d2.svm.lin <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
 d3.svm.lin <- optimize.C(d3.pcamca.train  , Cs, which.kernel="linear")
 d4.svm.lin <- optimize.C(d4.mca.train     , Cs, which.kernel="linear")
+
+d4.svm.lin$Cs <-       c(d4.svm.lin.tmp$Cs,d4.svm.lin$Cs)
+d4.svm.lin$F1 <-       c(d4.svm.lin.tmp$F1,d4.svm.lin$F1)
+d4.svm.lin$F1.sd <-    c(d4.svm.lin.tmp$F1.sd,d4.svm.lin$F1.sd)
+d4.svm.lin$accuracy <- c(d4.svm.lin.tmp$accuracy,d4.svm.lin$accuracy)
+for( i in 5:1){
+  d4.svm.lin$results[[i+1]] <- d4.svm.lin$results[[i]]
+}
+d4.svm.lin$results[[1]] <- d4.svm.lin.tmp$results[[1]]
+
+
+save(Cs,d1.svm.lin,d2.svm.lin,d3.svm.lin,d4.svm.lin, file = "tmp/smv-lin-results-v2.Rdata")
+load("tmp/smv-lin-results-v2.Rdata")
+df.res.lin <- data.frame(k=c(d1.svm.lin$Cs,d2.svm.lin$Cs,d3.svm.lin$Cs,d4.svm.lin$Cs),
+                 F1=c(d1.svm.lin$F1,  d2.svm.lin$F1, d3.svm.lin$F1, d4.svm.lin$F1), 
+                 accuracy=c(d1.svm.lin$accuracy, d2.svm.lin$accuracy, d3.svm.lin$accuracy,d4.svm.lin$accuracy),
+                 group=c(rep('D1 (lineal)',length(d1.svm.lin$Cs)),rep('D2 (lineal)',length(d2.svm.lin$Cs)),rep('D3 (lineal)',length(d3.svm.lin$Cs)),rep('D4 (lineal)',length(d4.svm.lin$Cs))))
+
+ggplot(df.res.lin, aes(x=k, y=F1, group=group, color=group)) + 
+  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
 
 
 #Polinomial 2
@@ -383,28 +403,86 @@ d2.svm.poly2 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.2")
 d3.svm.poly2 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.2")
 d4.svm.poly2 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.2")
 
+
+
+save(Cs,d1.svm.poly2,d2.svm.poly2,d3.svm.poly2,d4.svm.poly2, file = "tmp/svm-poly2-results-v2.Rdata")
+load("tmp/svm-poly2-results-v2.Rdata")
+df.res.poly2 <- data.frame(k=c(d1.svm.poly2$Cs, d2.svm.poly2$Cs, d3.svm.poly2$Cs, d4.svm.poly2$Cs),
+                         F1=c(d1.svm.poly2$F1,  d2.svm.poly2$F1, d3.svm.poly2$F1, d4.svm.poly2$F1), 
+                         accuracy=c(d1.svm.poly2$accuracy, d2.svm.poly2$accuracy, d3.svm.poly2$accuracy,d4.svm.poly2$accuracy),
+                         group=c(rep('D1 (poly2)',length(d1.svm.poly2$Cs)),rep('D2 (poly2)',length(d2.svm.poly2$Cs)),rep('D3 (poly2)',length(d3.svm.poly2$Cs)),rep('D4 (poly2)',length(d4.svm.poly2$Cs))))
+
+ggplot(df.res.poly2, aes(x=k, y=F1, group=group, color=group)) + 
+  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+
 #Polinomial 3
 d1.svm.poly3 <- optimize.C(dataset.train,     Cs, which.kernel="poly.3")
 d2.svm.poly3 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.3")
 d3.svm.poly3 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.3")
 d4.svm.poly3 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.3")
 
+save(Cs,d1.svm.poly3,d2.svm.poly3,d3.svm.poly3,d4.svm.poly3, file = "tmp/svm-poly3-results-v2.Rdata")
+load("tmp/svm-poly3-results-v2.Rdata")
+df.res.poly3 <- data.frame(k=c(d1.svm.poly3$Cs,d2.svm.poly3$Cs,d3.svm.poly3$Cs,d4.svm.poly3$Cs),
+                           F1=c(d1.svm.poly3$F1,  d2.svm.poly3$F1, d3.svm.poly3$F1, d4.svm.poly3$F1), 
+                           accuracy=c(d1.svm.poly3$accuracy, d2.svm.poly3$accuracy, d3.svm.poly3$accuracy,d4.svm.poly3$accuracy),
+                           group=c(rep('D1 (poly3)',length(d1.svm.poly3$Cs)),rep('D2 (poly3)',length(d2.svm.poly3$Cs)),rep('D3 (poly3)',length(d3.svm.poly3$Cs)),rep('D4 (poly3)',length(d4.svm.poly3$Cs))))
+
+ggplot(df.res.poly3, aes(x=k, y=F1, group=group, color=group)) + 
+  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+
+
 #RBF
-d1.svm.RBF <- optimize.C(dataset.train,     Cs, which.kernel="RBF")
-d2.svm.RBF <- optimize.C(dataset.cat.train, Cs, which.kernel="RBF")
-d3.svm.RBF <- optimize.C(d3.pcamca.train,   Cs, which.kernel="RBF")
-d4.svm.RBF <- optimize.C(d4.mca.train,      Cs, which.kernel="RBF")
+d1.svm.RBF.g05 <- optimize.C(dataset.train,     Cs, which.kernel="RBF", gamma=0.5)
+d2.svm.RBF.g05 <- optimize.C(dataset.cat.train, Cs, which.kernel="RBF",gamma=0.5)
+d3.svm.RBF.g05 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="RBF",gamma=0.5)
+d4.svm.RBF.g05 <- optimize.C(d4.mca.train,      Cs, which.kernel="RBF",gamma=0.5)
+
+save(Cs,d1.svm.RBF.g05,d2.svm.RBF.g05,d2.svm.RBF.g05,d4.svm.RBF.g05, file = "tmp/svm-RFB-results-05.Rdata")
+load("tmp/svm-RFB-results-05.Rdata")
 
 gammas <- 2^seq(-3,4)
-svm.RBF.d1.g.F1 <- numeric(length(gammas))
-svm.RBF.d2.g.F1 <- numeric(length(gammas))
-for (i in 1:(length(gammas)))#Gamma
+d1.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
+d2.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
+d3.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
+d4.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
+for (i in c(2,4))#Gamma
 {
   print(paste("gamma ", gammas[i]))
-  svm.RBF.d1.g.F1[i] = run.SVM(dataset.train,C=svm.RBF.d1.F1$max.C, "RBF", gamma= gammas[i])
-  svm.RBF.d2.g.F1[i] = run.SVM(dataset.cat.train,C=svm.RBF.d2.F1$max.C, "RBF", gamma=gammas[i])
-  
+  d1.svm.RBF.F1[,i] <- optimize.C(dataset.train,    Cs, which.kernel="RBF", gamma= gammas[i])
+  d2.svm.RBF.F1[,i] <- optimize.C(dataset.cat.train,Cs, which.kernel="RBF", gamma=gammas[i])
+  d3.svm.RBF.F1[,i] <- optimize.C(d3.pcamca.train,  Cs, which.kernel="RBF", gamma=gammas[i])
+  d4.svm.RBF.F1[,i] <- optimize.C(d4.mca.train,     Cs, which.kernel="RBF", gamma=gammas[i])
 }
+
+d1.svm.RBF.F1[,3] <-d1.svm.RBF.g05$F1
+d2.svm.RBF.F1[,3] <-d2.svm.RBF.g05$F1
+d3.svm.RBF.F1[,3] <-d3.svm.RBF.g05$F1
+d4.svm.RBF.F1[,3] <-d4.svm.RBF.g05$F1
+# Plot
+df.res.svm = data.frame()
+for(i in 1:(length(Cs))){
+  for(j in 1:(length(gammas))){
+    df.tmp <- data.frame(C=rep(Cs[i],4),
+                         gamma=rep(gammas[j],4),
+                         F1=c(d1.svm.RBF.F1[i,j],  d2.svm.RBF.F1[i,j], d3.svm.RBF.F1[i,j], d4.svm.RBF.F1[i,j]), 
+                         group=c('D1 (RBF)','D2 (RBF)','D3 (RBF)','D4 (RBF)'))
+    df.res.svm <- rbind(df.res.svm,df.tmp)
+  }
+}
+df.res.svm$C <- as.factor(df.res.svm$C)
+df.res.svm$gamma <- as.factor(df.res.svm$gamma)
+
+ggplot(data = df.res.svm[df.res.svm$group=='D1 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
+  geom_tile()
+ggplot(data = df.res.svm[df.res.svm$group=='D2 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
+  geom_tile()
+ggplot(data = df.res.svm[df.res.svm$group=='D3 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
+  geom_tile()
+ggplot(data = df.res.svm[df.res.svm$group=='D4 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
+  geom_tile()
+#ggplot(df.res.svm, aes(x=C, y=F1, group=group, color=group)) + 
+#  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
 
 ####################################################################
 # Tree

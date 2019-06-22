@@ -14,8 +14,8 @@ rm(list = ls())
 setwd(".")
 
 # Load preprocessed data
-load("bank-processed.Rdata")
-load("bank-processed-cat.Rdata")
+load("dataset/bank-processed.Rdata")
+load("dataset/bank-processed-cat.Rdata")
 
 # First, we split the 'dataset', and secondly, we apply the same split to 'dataset.cat' 
 
@@ -56,9 +56,9 @@ for(i in num.vars){
 }
 
 # Save data
-save(dataset.train, dataset.test, file = "bank-processed-train-test.Rdata")
+save(dataset.train, dataset.test, file = "dataset/bank-processed-train-test.Rdata")
 
 # Apply same split (exact) to dataset.cat and save it
 dataset.cat.train <- dataset.cat[row.names(dataset.train),]
 dataset.cat.test <- dataset.cat[row.names(dataset.test),]
-save(dataset.cat.train, dataset.cat.test, file = "bank-processed-cat-train-test.Rdata")
+save(dataset.cat.train, dataset.cat.test, file = "dataset/bank-processed-cat-train-test.Rdata")

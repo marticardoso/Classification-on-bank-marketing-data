@@ -31,7 +31,7 @@ par(mfrow=c(1,1))
 # And again selecting the significant dimensions (these projections are the new dataset D3)
 
 # Load preprocessed data
-load("bank-processed-train-test.Rdata")
+load("dataset/bank-processed-train-test.Rdata")
 
 #### PCA #####
 
@@ -113,7 +113,7 @@ tmp = predict(join.pca, test.join.dataframe)
 d3.pcamca.test = data.frame(tmp[,1:join.pca.nd])
 d3.pcamca.test$y = dataset.test$y
 
-save(d3.pcamca.train, d3.pcamca.test, file = "D3.PCAMCA.dataset.Rdata")
+save(d3.pcamca.train, d3.pcamca.test, file = "dataset/D3.PCAMCA.dataset.Rdata")
 
 #################################
 ## Approach 2 (Creation of D4) ##
@@ -121,7 +121,7 @@ save(d3.pcamca.train, d3.pcamca.test, file = "D3.PCAMCA.dataset.Rdata")
 # Apply MCA to the dataset, discretizing all continuous variables
 
 #Load preprocessed data
-load("bank-processed-cat-train-test.Rdata")
+load("dataset/bank-processed-cat-train-test.Rdata")
 
 # All variables are categorical, except age, so we discretize this variable
 dataset.cat.train$age <- cut(dataset.cat.train$age, c(20,30,40,50,60,80), labels=c("<30","31<40","41<50","51<60",">61"),right = FALSE, ordered_result=TRUE)
@@ -162,4 +162,4 @@ d4.mca.test = data.frame(d4.mca.test)
 d4.mca.test$y = dataset.cat.test$y
 
 # Save data
-save(d4.mca.train, d4.mca.test, file = "D4.MCA.dataset.Rdata")
+save(d4.mca.train, d4.mca.test, file = "dataset/D4.MCA.dataset.Rdata")

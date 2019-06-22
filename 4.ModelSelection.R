@@ -1,5 +1,5 @@
 ####################################################################
-# Course project - MIRI
+# Course project - ML (MIRI)
 ## Authors:
 # - Marti Cardoso 
 # - Meysam Zamani
@@ -28,11 +28,11 @@ library(randomForest)
 library(scales)
 
 #Load preprocessed data
-load("bank-processed-train-test.Rdata")
-load("bank-processed-cat-train-test.Rdata")
+load("dataset/bank-processed-train-test.Rdata")
+load("dataset/bank-processed-cat-train-test.Rdata")
 dataset.cat.train$age <- scale(dataset.cat.train$age)
-load("D3.PCAMCA.dataset.Rdata")
-load("D4.MCA.dataset.Rdata")
+load("dataset/D3.PCAMCA.dataset.Rdata")
+load("dataset/D4.MCA.dataset.Rdata")
 set.seed (104)
 
 # First, we load some useful function for the model selection task

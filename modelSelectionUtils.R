@@ -16,7 +16,7 @@ harm <- function (a,b) { 2/(1/a+1/b) }
 F1 <- function (pred, real)
 {
   ct <- table(Truth=real, Pred=pred)
-  harm (prop.table(ct,1)[1,1], prop.table(ct,1)[2,2])
+  harm (prop.table(ct,1)[2,2], prop.table(ct,2)[2,2])
 }
 
 # Function that runs a k-fold-CV using:

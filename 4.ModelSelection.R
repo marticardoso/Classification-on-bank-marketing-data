@@ -5,6 +5,7 @@
 # - Meysam Zamani
 
 # Part 4: Model Selection
+#         We try several ML methods in order to select the best model 
 # June 2019
 ####################################################################
 
@@ -310,19 +311,16 @@ optimize.C <- function (dataset, Cs = 10^seq(-2,3), which.kernel="linear", gamma
   z
 }
 
-#Linear kernel
+# Linear kernel #
 Cs <- 10^seq(-3,1)
 d1.svm.lin <- optimize.C(dataset.train, Cs, which.kernel="linear")
 d2.svm.lin <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
 d3.svm.lin <- optimize.C(d3.pcamca.train  , Cs, which.kernel="linear")
 d4.svm.lin <- optimize.C(d4.mca.train     , Cs, which.kernel="linear")
 
-
-save(Cs,d1.svm.lin,d2.svm.lin,d3.svm.lin,d4.svm.lin, file = "tmp/smv-lin-results-v2.Rdata")
-load("tmp/smv-lin-results-v2.Rdata")
+#Plot results
 df.res.lin <- data.frame(k=c(d1.svm.lin$Cs,d2.svm.lin$Cs,d3.svm.lin$Cs,d4.svm.lin$Cs),
                  F1=c(d1.svm.lin$F1,  d2.svm.lin$F1, d3.svm.lin$F1, d4.svm.lin$F1), 
-                 accuracy=c(d1.svm.lin$accuracy, d2.svm.lin$accuracy, d3.svm.lin$accuracy,d4.svm.lin$accuracy),
                  group=c(rep('D1 (lineal)',length(d1.svm.lin$Cs)),rep('D2 (lineal)',length(d2.svm.lin$Cs)),rep('D3 (lineal)',length(d3.svm.lin$Cs)),rep('D4 (lineal)',length(d4.svm.lin$Cs))))
 
 ggplot(df.res.lin, aes(x=k, y=F1, group=group, color=group)) + 
@@ -330,19 +328,17 @@ ggplot(df.res.lin, aes(x=k, y=F1, group=group, color=group)) +
   geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (lineal)') + 
   scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
-#Polinomial 2
+
+# Polinomial 2 #
+
 d1.svm.poly2 <- optimize.C(dataset.train,     Cs, which.kernel="poly.2")
 d2.svm.poly2 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.2")
 d3.svm.poly2 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.2")
 d4.svm.poly2 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.2")
 
-
-
-save(Cs,d1.svm.poly2,d2.svm.poly2,d3.svm.poly2,d4.svm.poly2, file = "tmp/svm-poly2-results-v2.Rdata")
-load("tmp/svm-poly2-results-v2.Rdata")
+#Plot results
 df.res.poly2 <- data.frame(k=c(d1.svm.poly2$Cs, d2.svm.poly2$Cs, d3.svm.poly2$Cs, d4.svm.poly2$Cs),
                          F1=c(d1.svm.poly2$F1,  d2.svm.poly2$F1, d3.svm.poly2$F1, d4.svm.poly2$F1), 
-                         accuracy=c(d1.svm.poly2$accuracy, d2.svm.poly2$accuracy, d3.svm.poly2$accuracy,d4.svm.poly2$accuracy),
                          group=c(rep('D1 (poly2)',length(d1.svm.poly2$Cs)),rep('D2 (poly2)',length(d2.svm.poly2$Cs)),rep('D3 (poly2)',length(d3.svm.poly2$Cs)),rep('D4 (poly2)',length(d4.svm.poly2$Cs))))
 
 ggplot(df.res.poly2, aes(x=k, y=F1, group=group, color=group)) + 
@@ -350,17 +346,17 @@ ggplot(df.res.poly2, aes(x=k, y=F1, group=group, color=group)) +
   geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (Poly2)') + 
   scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
-#Polinomial 3
+
+# Polinomial 3 #
+
 d1.svm.poly3 <- optimize.C(dataset.train,     Cs, which.kernel="poly.3")
 d2.svm.poly3 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.3")
 d3.svm.poly3 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.3")
 d4.svm.poly3 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.3")
 
-save(Cs,d1.svm.poly3,d2.svm.poly3,d3.svm.poly3,d4.svm.poly3, file = "tmp/svm-poly3-results-v2.Rdata")
-load("tmp/svm-poly3-results-v2.Rdata")
+#Plot results
 df.res.poly3 <- data.frame(k=c(d1.svm.poly3$Cs,d2.svm.poly3$Cs,d3.svm.poly3$Cs,d4.svm.poly3$Cs),
                            F1=c(d1.svm.poly3$F1,  d2.svm.poly3$F1, d3.svm.poly3$F1, d4.svm.poly3$F1), 
-                           accuracy=c(d1.svm.poly3$accuracy, d2.svm.poly3$accuracy, d3.svm.poly3$accuracy,d4.svm.poly3$accuracy),
                            group=c(rep('D1 (poly3)',length(d1.svm.poly3$Cs)),rep('D2 (poly3)',length(d2.svm.poly3$Cs)),rep('D3 (poly3)',length(d3.svm.poly3$Cs)),rep('D4 (poly3)',length(d4.svm.poly3$Cs))))
 
 ggplot(df.res.poly3, aes(x=k, y=F1, group=group, color=group)) + 
@@ -369,21 +365,14 @@ ggplot(df.res.poly3, aes(x=k, y=F1, group=group, color=group)) +
   scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
 
-#RBF
-d1.svm.RBF.g05 <- optimize.C(dataset.train,     Cs, which.kernel="RBF", gamma=0.5)
-d2.svm.RBF.g05 <- optimize.C(dataset.cat.train, Cs, which.kernel="RBF",gamma=0.5)
-d3.svm.RBF.g05 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="RBF",gamma=0.5)
-d4.svm.RBF.g05 <- optimize.C(d4.mca.train,      Cs, which.kernel="RBF",gamma=0.5)
-
-save(Cs,d1.svm.RBF.g05,d2.svm.RBF.g05,d3.svm.RBF.g05,d4.svm.RBF.g05, file = "tmp/svm-RFB-results-05.Rdata")
-load("tmp/svm-RFB-results-G35.Rdata")
+# RBF #
 
 gammas <- 2^seq(-3,2)
 d1.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
 d2.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
 d3.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
 d4.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
-for (i in gammas)#Gamma
+for (i in gammas) #Grid search: gamma and C
 {
   print(paste("gamma ", gammas[i]))
   d1.svm.RBF.F1[,i] <- optimize.C(dataset.train,    Cs, which.kernel="RBF", gamma= gammas[i])$F1
@@ -391,9 +380,6 @@ for (i in gammas)#Gamma
   d3.svm.RBF.F1[,i] <- optimize.C(d3.pcamca.train,  Cs, which.kernel="RBF", gamma=gammas[i])$F1
   d4.svm.RBF.F1[,i] <- optimize.C(d4.mca.train,     Cs, which.kernel="RBF", gamma=gammas[i])$F1
 }
-
-
-save(Cs,d1.svm.RBF.F1,d2.svm.RBF.F1,d3.svm.RBF.F1,d4.svm.RBF.F1, file = "tmp/svm-RFB-results-G123456.Rdata")
 
 # Plot
 df.res.svm = data.frame()

@@ -4,7 +4,8 @@
 # - Marti Cardoso 
 # - Meysam Zamani
 
-# Part 4: Classification
+# Part 4: Model Selection
+#         We try several ML methods in order to select the best model 
 # June 2019
 ####################################################################
 
@@ -22,8 +23,9 @@ library(class)
 library(nnet)
 library(ggplot2)
 library(e1071)
-library(tree)
+library(rpart)
 library(randomForest)
+library(scales)
 
 #Load preprocessed data
 load("bank-processed-train-test.Rdata")
@@ -33,25 +35,19 @@ load("D3.PCAMCA.dataset.Rdata")
 load("D4.MCA.dataset.Rdata")
 set.seed (104)
 
-#First we load some useful function for the model selection task
+# First, we load some useful function for the model selection task
 source('modelSelectionUtils.R')
-
-#mca.result <- mca(dataset.cat.train[,c(-1,-18)], 5)
-#d4.mca.train <- data.frame(mca.result$rs)
-#d4.mca.train$y <- dataset.cat.train$y
-#predict(mca2,dataset.cat.test[,c(-1,-18)])
-
 
 ####################################################################
 # Logistic Regression
 ####################################################################
 
+# Function that runs 10-fold CV using logistic regression 
 run.logisticRegression <- function (dataset,P=0.5)
 {
   createModelAndPredict <- function(train, newdata){
     weights <- compute.weights(train$y)
     glm.model <- glm (y~., train, weights=weights,family = binomial) 
-    #glm.model <- step(glm.model, trace=FALSE)
     preds <- predict(glm.model, newdata, type="response")
     return(probabilityToFactor(preds,P))
   }
@@ -78,7 +74,6 @@ run.glmnet <- function (dataset, lambda, alpha = 1, P = 0.5)
     #Create dummy variables for categorical
     x <- model.matrix(y~., train)[,-1]
     
-    # Fit the final model on the training data
     model <- glmnet(x, train$y, alpha = alpha, weights = weights, family = "binomial", lambda=lambda)
     
     x.test <- model.matrix(y ~., newdata)[,-1]
@@ -89,7 +84,7 @@ run.glmnet <- function (dataset, lambda, alpha = 1, P = 0.5)
   run.k.fold.CV(createModelAndPredict,dataset, performance.metric=c("accuracy","F1"))
 }
 
-# Try several lambdas
+# Function that tries several lambdas
 run.glmnet.find.best.lambda <- function (dataset, lambda.v, alpha = 1, P = 0.5)
 {
   results = list()
@@ -127,8 +122,6 @@ d3.ridge = run.glmnet.find.best.lambda(d3.pcamca.train,lambda.v,alpha=0)
 d4.Lasso = run.glmnet.find.best.lambda(d4.mca.train,lambda.v,alpha=1)
 d4.ridge = run.glmnet.find.best.lambda(d4.mca.train,lambda.v,alpha=0)
 
-save(d1.Lasso,d1.ridge,d2.Lasso,d2.ridge,d3.Lasso,d3.ridge,d4.Lasso,d4.ridge, file = "tmp/glmnet-results.Rdata")
-load("tmp/glmnet-results.Rdata")
 #Plot results
 df <- data.frame(lambda=c(lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v),
                  F1=c(d1.Lasso$lambda.F1, d1.ridge$lambda.F1, 
@@ -139,31 +132,34 @@ df <- data.frame(lambda=c(lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,
                       d2.Lasso$lambda.F1.sd, d2.ridge$lambda.F1.sd,
                       d3.Lasso$lambda.F1.sd, d3.ridge$lambda.F1.sd,
                       d4.Lasso$lambda.F1.sd, d4.ridge$lambda.F1.sd),
-                 group=c(rep('D1 Lasso',n.lambdas),rep('D1 Ridge',n.lambdas),
-                         rep('D2 Lasso',n.lambdas),rep('D2 Ridge',n.lambdas),
-                         rep('D3 (PCA+MCA) Lasso',n.lambdas),rep('D3 (PCA+MCA) Ridge',n.lambdas),
-                         rep('D4 (MCA) Lasso',n.lambdas),rep('D4 (MCA) Ridge',n.lambdas)))
+                 Dataset=c(rep('D1 Lasso',n.lambdas),rep('D1 Ridge',n.lambdas),
+                           rep('D2 Lasso',n.lambdas),rep('D2 Ridge',n.lambdas),
+                           rep('D3 Lasso',n.lambdas),rep('D3 Ridge',n.lambdas),
+                           rep('D4 Lasso',n.lambdas),rep('D4 Ridge',n.lambdas)))
 
-ggplot(df[df$F1>0.5,], aes(x=lambda, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1", limits = c(0.65, 0.75)) + scale_x_continuous(trans='log2')+
-  geom_line() + theme_minimal()
+ggplot(df, aes(x=lambda, y=F1, group=Dataset, color=Dataset)) + 
+  scale_y_continuous(name = "F1") +
+  geom_line() + theme_minimal() + ggtitle('Optimization of lambda - Lasso and ridge reg.') + 
+  coord_cartesian(ylim=c(0.65, 0.75)) + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x)))
 
-ggplot(df[df$F1>0.5,], aes(x=lambda, y=sd, group=group, color=group)) + 
+ggplot(df, aes(x=lambda, y=sd, group=Dataset, color=Dataset)) + 
   scale_y_continuous(name = "sd(F1)",limits = c(0, 0.028)) + scale_x_continuous(trans='log2')+
   geom_line() + theme_minimal()
+
 
 ####################################################################
 # LDA
 ####################################################################
 
+# 10-fold CV using LDA 
 run.lda <- function (dataset)
 {
   createModelAndPredict <- function(train, newdata){
     lda.model <- lda(y~., train,prior=c(1,1)/2) 
     test.pred <- predict (lda.model, newdata)$class
     return(test.pred)
-    #test.prob <- predict (lda.model, newdata)$posterior[,2]
-    #return(probabilityToFactor(test.prob,P))
   }
   run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
 }
@@ -173,83 +169,12 @@ run.lda <- function (dataset)
 (d3.lda = run.lda(d3.pcamca.train))
 (d4.lda = run.lda(d4.mca.train))
 
-####################################################################
-# QDA
-####################################################################
-
-run.qda <- function (dataset)
-{
-  createModelAndPredict <- function(train, newdata){
-    qda.model <- qda(y~., train,prior=c(1,1)/2) 
-    test.pred <- predict (qda.model, newdata)$class
-    return(test.pred)
-  }
-  run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
-}
-
-#(d1.qda = run.qda(dataset.train))
-#(d2.qda = run.qda(dataset.cat.train))
-(d3.qda = run.qda(d3.pcamca.train))
-(d4.qda = run.qda(d4.mca.train))
-
-####################################################################
-# knn
-####################################################################
-
-run.knn <- function (dataset, k)
-{
-  createModelAndPredict <- function(train, newdata){
-    x.train <- model.matrix(y~., train)[,-1]
-    x.test <- model.matrix(y~., newdata)[,-1]
-    pred <- knn(x.train, x.test, train$y, k=k)
-    pred
-  }
-  run.k.fold.CV(createModelAndPredict,dataset, performance.metric=c("accuracy","F1"))
-}
-
-# Try several ks
-optimize.knn.k <- function (dataset, ks = seq(1,15,2))
-{
-  results = list()
-  for(i in 1:(length(ks))){
-    print(paste("k = ", ks[i]))
-    results[[i]] <- run.knn(dataset, ks[i])
-  }
-  z <- list(ks=ks,results=results)
-  z$F1 <- unlist(lapply(results,function(t) t$F1.mean))
-  z$F1.sd <- unlist(lapply(results,function(t) t$F1.sd))
-  z$accuracy <- unlist(lapply(results,function(t) t$accuracy.mean))
-  z$accuracy.sd <- unlist(lapply(results,function(t) t$accuracy.sd))
-  
-  max.id <- which.max(z$F1)[1]
-  z$max.k=ks[max.id]
-  z$max.F1 = z$F1[max.id]
-  z$max.F1.sd = z$F1.sd[max.id]
-  z
-}
-(d1.knn <- optimize.knn.k(dataset.train))
-#(d2.knn <- optimize.knn.k(dataset.cat.train))
-(d3.knn <- optimize.knn.k(d3.pcamca.train))
-(d4.knn <- optimize.knn.k(d4.mca.train))
-
-save(d1.knn,d3.knn,d4.knn, file = "tmp/knn-results.Rdata")
-load("tmp/knn-results.Rdata")
-#Plot results
-df <- data.frame(k=c(d3.knn$ks,d4.knn$ks, d1.knn$ks),
-                 F1=c(d3.knn$F1,    d4.knn$F1, d1.knn$F1), 
-                 acc=c(d3.knn$accuracy, d4.knn$accuracy, d1.knn$accuracy),
-                 group=c(rep('D3',length(d3.knn$ks)),rep('D4',length(d3.knn$ks)),rep('D1',length(d1.knn$ks))))
-
-ggplot(df, aes(x=k, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1")+ geom_line() + theme_minimal()
-
-ggplot(df, aes(x=k, y=acc, group=group, color=group)) + 
-  scale_y_continuous(name = "Accuracy") + geom_line() + theme_minimal()
 
 ####################################################################
 # Naïve Bayes
 ####################################################################
 
+# 10-fold CV using Naive Bayes 
 run.NaiveBayes <- function (dataset, laplace=0)
 {
   createModelAndPredict <- function(train, newdata){
@@ -262,35 +187,45 @@ run.NaiveBayes <- function (dataset, laplace=0)
 }
 
 (d1.naive = run.NaiveBayes(dataset.train))
-(d1.naive.lapl = run.NaiveBayes(dataset.train,laplace=1))
-
 (d2.naive = run.NaiveBayes(dataset.cat.train))
-(d2.naive.lapl = run.NaiveBayes(dataset.cat.train,laplace=1))
-
 (d3.naive = run.NaiveBayes(d3.pcamca.train))
-(d3.naive.lapl = run.NaiveBayes(d3.pcamca.train,laplace=1))
-
 (d4.naive = run.NaiveBayes(d4.mca.train))
-(d4.naive.lapl = run.NaiveBayes(d4.mca.train,laplace=1))
 
+# Try several laplace
 ls = c(0:10)
-result = numeric(length(ls))
+d1.naive.l.F1 = numeric(length(ls))
+d2.naive.l.F1 = numeric(length(ls))
+d3.naive.l.F1 = numeric(length(ls))
+d4.naive.l.F1 = numeric(length(ls))
 for(i in 1:length(ls)){
-  result[i] = run.NaiveBayes(dataset.train,laplace=ls[i])$F1.mean
+  print(paste("Laplace: ",ls[i]))
+  d1.naive.l.F1[i] = run.NaiveBayes(dataset.train,laplace=ls[i])$F1.mean
+  d2.naive.l.F1[i] = run.NaiveBayes(dataset.cat.train,laplace=ls[i])$F1.mean
+  d3.naive.l.F1[i] = run.NaiveBayes(d3.pcamca.train,laplace=ls[i])$F1.mean
+  d4.naive.l.F1[i] = run.NaiveBayes(d4.mca.train,laplace=ls[i])$F1.mean
 }
-plot(ls,result,type='l')
+
+# Plot results
+df.res <- data.frame(laplace=c(ls,ls,ls,ls),
+                     F1=c(d1.naive.l.F1, d2.naive.l.F1, d3.naive.l.F1, d4.naive.l.F1), 
+                     Dataset=c(rep('D1',length(ls)),rep('D2',length(ls)),
+                               rep('D3',length(ls)),rep('D4',length(ls))))
+ggplot(df.res, aes(x=as.factor(laplace), y=F1, group=Dataset, color=Dataset)) + 
+  labs(x = "laplace smoothing", y = "F1") +
+  geom_line() + theme_minimal() + ggtitle('Laplace smoothing optimization  - Naive Bayes') + 
+  coord_cartesian(ylim=c(0.58, 0.73)) 
 
 ####################################################################
 # Multilayer Perceptrons
 ####################################################################
 
+# 10-fold CV using MLP 
 run.MLP <- function (dataset, nneurons, decay=0)
 {
   createModelAndPredict <- function(train, newdata){
     weights = compute.weights(train$y)
     model <- nnet(y ~., data = train, weights = weights, size=nneurons, 
                   maxit=100, decay=decay, MaxNWts=10000, trace=FALSE)
-    print( c("Weights",length(model$wts)))
     test.pred <- predict (model, newdata)
     return(probabilityToFactor(test.pred))
   }
@@ -316,19 +251,27 @@ optimize.decay <- function(dataset, nneurons, decays=c(0,10^seq(-3,0,by=0.1))){
 }
 
 # We fix a large number of hidden units in one hidden layer, and explore different regularization values
-nneurons <- 20
-decays <- c(0,10^seq(-3,0,by=1))
+nneurons <- 30
+decays <- c(0,10^seq(-3,5,by=1))
 
 (d1.mlp <- optimize.decay(dataset.train,    nneurons, decays))
 (d2.mlp <- optimize.decay(dataset.cat.train,nneurons, decays))
 (d3.mlp <- optimize.decay(d3.pcamca.train,  nneurons, decays))
 (d4.mlp <- optimize.decay(d4.mca.train,     nneurons, decays))
 
+df <- data.frame(decays=rep(decays,4),
+                 F1=c(d1.mlp$F1, d2.mlp$F1, d3.mlp$F1, d4.mlp$F1), 
+                 Dataset=c(rep('D1',length(decays)),rep('D2',length(decays)), rep('D3',length(decays)),rep('D4',length(decays))))
+
+ggplot(df, aes(x=decays, y=F1, group=Dataset, color=Dataset)) + 
+  labs(x = "Decay", y = "F1") + ggtitle('Decay opt. - MLP') + coord_cartesian(ylim=c(0.65, 0.75)) + 
+  geom_line() + theme_minimal()  + scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                                                 labels = trans_format("log10", math_format(10^.x)))
 ####################################################################
 # SVM
 ####################################################################
 
-
+# 10-fold CV using SVM 
 run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
 {
   createModelAndPredict <- function(train, newdata){
@@ -369,97 +312,77 @@ optimize.C <- function (dataset, Cs = 10^seq(-2,3), which.kernel="linear", gamma
   z
 }
 
-#Linear kernel
+# Linear kernel #
 Cs <- 10^seq(-3,1)
-d1.svm.lin.tmp <- optimize.C(dataset.train,     c(1e2), which.kernel="linear")
+d1.svm.lin <- optimize.C(dataset.train, Cs, which.kernel="linear")
 d2.svm.lin <- optimize.C(dataset.cat.train, Cs, which.kernel="linear")
 d3.svm.lin <- optimize.C(d3.pcamca.train  , Cs, which.kernel="linear")
 d4.svm.lin <- optimize.C(d4.mca.train     , Cs, which.kernel="linear")
 
-d4.svm.lin$Cs <-       c(d4.svm.lin.tmp$Cs,d4.svm.lin$Cs)
-d4.svm.lin$F1 <-       c(d4.svm.lin.tmp$F1,d4.svm.lin$F1)
-d4.svm.lin$F1.sd <-    c(d4.svm.lin.tmp$F1.sd,d4.svm.lin$F1.sd)
-d4.svm.lin$accuracy <- c(d4.svm.lin.tmp$accuracy,d4.svm.lin$accuracy)
-for( i in 5:1){
-  d4.svm.lin$results[[i+1]] <- d4.svm.lin$results[[i]]
-}
-d4.svm.lin$results[[1]] <- d4.svm.lin.tmp$results[[1]]
-
-
-save(Cs,d1.svm.lin,d2.svm.lin,d3.svm.lin,d4.svm.lin, file = "tmp/smv-lin-results-v2.Rdata")
-load("tmp/smv-lin-results-v2.Rdata")
+#Plot results
 df.res.lin <- data.frame(k=c(d1.svm.lin$Cs,d2.svm.lin$Cs,d3.svm.lin$Cs,d4.svm.lin$Cs),
                  F1=c(d1.svm.lin$F1,  d2.svm.lin$F1, d3.svm.lin$F1, d4.svm.lin$F1), 
-                 accuracy=c(d1.svm.lin$accuracy, d2.svm.lin$accuracy, d3.svm.lin$accuracy,d4.svm.lin$accuracy),
                  group=c(rep('D1 (lineal)',length(d1.svm.lin$Cs)),rep('D2 (lineal)',length(d2.svm.lin$Cs)),rep('D3 (lineal)',length(d3.svm.lin$Cs)),rep('D4 (lineal)',length(d4.svm.lin$Cs))))
 
 ggplot(df.res.lin, aes(x=k, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+  labs(x = "C", y ="F1") +  coord_cartesian(ylim=c(0.65, 0.75)) +
+  geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (lineal)') + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
 
-#Polinomial 2
+# Polinomial 2 #
+
 d1.svm.poly2 <- optimize.C(dataset.train,     Cs, which.kernel="poly.2")
 d2.svm.poly2 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.2")
 d3.svm.poly2 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.2")
 d4.svm.poly2 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.2")
 
-
-
-save(Cs,d1.svm.poly2,d2.svm.poly2,d3.svm.poly2,d4.svm.poly2, file = "tmp/svm-poly2-results-v2.Rdata")
-load("tmp/svm-poly2-results-v2.Rdata")
+#Plot results
 df.res.poly2 <- data.frame(k=c(d1.svm.poly2$Cs, d2.svm.poly2$Cs, d3.svm.poly2$Cs, d4.svm.poly2$Cs),
                          F1=c(d1.svm.poly2$F1,  d2.svm.poly2$F1, d3.svm.poly2$F1, d4.svm.poly2$F1), 
-                         accuracy=c(d1.svm.poly2$accuracy, d2.svm.poly2$accuracy, d3.svm.poly2$accuracy,d4.svm.poly2$accuracy),
                          group=c(rep('D1 (poly2)',length(d1.svm.poly2$Cs)),rep('D2 (poly2)',length(d2.svm.poly2$Cs)),rep('D3 (poly2)',length(d3.svm.poly2$Cs)),rep('D4 (poly2)',length(d4.svm.poly2$Cs))))
 
 ggplot(df.res.poly2, aes(x=k, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+  labs(x = "C", y ="F1") +  coord_cartesian(ylim=c(0.65, 0.75)) +
+  geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (Poly2)') + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
-#Polinomial 3
+
+# Polinomial 3 #
+
 d1.svm.poly3 <- optimize.C(dataset.train,     Cs, which.kernel="poly.3")
 d2.svm.poly3 <- optimize.C(dataset.cat.train, Cs, which.kernel="poly.3")
 d3.svm.poly3 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="poly.3")
 d4.svm.poly3 <- optimize.C(d4.mca.train,      Cs, which.kernel="poly.3")
 
-save(Cs,d1.svm.poly3,d2.svm.poly3,d3.svm.poly3,d4.svm.poly3, file = "tmp/svm-poly3-results-v2.Rdata")
-load("tmp/svm-poly3-results-v2.Rdata")
+#Plot results
 df.res.poly3 <- data.frame(k=c(d1.svm.poly3$Cs,d2.svm.poly3$Cs,d3.svm.poly3$Cs,d4.svm.poly3$Cs),
                            F1=c(d1.svm.poly3$F1,  d2.svm.poly3$F1, d3.svm.poly3$F1, d4.svm.poly3$F1), 
-                           accuracy=c(d1.svm.poly3$accuracy, d2.svm.poly3$accuracy, d3.svm.poly3$accuracy,d4.svm.poly3$accuracy),
                            group=c(rep('D1 (poly3)',length(d1.svm.poly3$Cs)),rep('D2 (poly3)',length(d2.svm.poly3$Cs)),rep('D3 (poly3)',length(d3.svm.poly3$Cs)),rep('D4 (poly3)',length(d4.svm.poly3$Cs))))
 
 ggplot(df.res.poly3, aes(x=k, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+  labs(x = "C", y ="F1") +  coord_cartesian(ylim=c(0.65, 0.75)) +
+  geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (Poly3)') + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
 
-#RBF
-d1.svm.RBF.g05 <- optimize.C(dataset.train,     Cs, which.kernel="RBF", gamma=0.5)
-d2.svm.RBF.g05 <- optimize.C(dataset.cat.train, Cs, which.kernel="RBF",gamma=0.5)
-d3.svm.RBF.g05 <- optimize.C(d3.pcamca.train,   Cs, which.kernel="RBF",gamma=0.5)
-d4.svm.RBF.g05 <- optimize.C(d4.mca.train,      Cs, which.kernel="RBF",gamma=0.5)
+# RBF #
 
-save(Cs,d1.svm.RBF.g05,d2.svm.RBF.g05,d2.svm.RBF.g05,d4.svm.RBF.g05, file = "tmp/svm-RFB-results-05.Rdata")
-load("tmp/svm-RFB-results-05.Rdata")
-
-gammas <- 2^seq(-3,4)
+gammas <- 2^seq(-3,2)
 d1.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
 d2.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
 d3.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
 d4.svm.RBF.F1 <- matrix(0,length(Cs),length(gammas))
-for (i in c(2,4))#Gamma
+for (i in gammas) #Grid search: gamma and C
 {
   print(paste("gamma ", gammas[i]))
-  d1.svm.RBF.F1[,i] <- optimize.C(dataset.train,    Cs, which.kernel="RBF", gamma= gammas[i])
-  d2.svm.RBF.F1[,i] <- optimize.C(dataset.cat.train,Cs, which.kernel="RBF", gamma=gammas[i])
-  d3.svm.RBF.F1[,i] <- optimize.C(d3.pcamca.train,  Cs, which.kernel="RBF", gamma=gammas[i])
-  d4.svm.RBF.F1[,i] <- optimize.C(d4.mca.train,     Cs, which.kernel="RBF", gamma=gammas[i])
+  d1.svm.RBF.F1[,i] <- optimize.C(dataset.train,    Cs, which.kernel="RBF", gamma= gammas[i])$F1
+  d2.svm.RBF.F1[,i] <- optimize.C(dataset.cat.train,Cs, which.kernel="RBF", gamma=gammas[i])$F1
+  d3.svm.RBF.F1[,i] <- optimize.C(d3.pcamca.train,  Cs, which.kernel="RBF", gamma=gammas[i])$F1
+  d4.svm.RBF.F1[,i] <- optimize.C(d4.mca.train,     Cs, which.kernel="RBF", gamma=gammas[i])$F1
 }
 
-d1.svm.RBF.F1[,3] <-d1.svm.RBF.g05$F1
-d2.svm.RBF.F1[,3] <-d2.svm.RBF.g05$F1
-d3.svm.RBF.F1[,3] <-d3.svm.RBF.g05$F1
-d4.svm.RBF.F1[,3] <-d4.svm.RBF.g05$F1
-# Plot
+# Plot results
 df.res.svm = data.frame()
 for(i in 1:(length(Cs))){
   for(j in 1:(length(gammas))){
@@ -473,31 +396,31 @@ for(i in 1:(length(Cs))){
 df.res.svm$C <- as.factor(df.res.svm$C)
 df.res.svm$gamma <- as.factor(df.res.svm$gamma)
 
-ggplot(data = df.res.svm[df.res.svm$group=='D1 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
-  geom_tile()
+ggplot(data = df.res.svm[df.res.svm$group=='D1 (RBF)',], aes(x=C, y=gamma, fill=F1)) +
+  scale_fill_gradient2(limit = c(0,1))+ geom_tile() +ggtitle('Grid search (gamma and C) for D1 - SVM (RBF)')
 ggplot(data = df.res.svm[df.res.svm$group=='D2 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
-  geom_tile()
+  scale_fill_gradient2(limit = c(0,1))+ geom_tile() +ggtitle('Grid search (gamma and C) for D2- SVM (RBF)')
 ggplot(data = df.res.svm[df.res.svm$group=='D3 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
-  geom_tile()
+  scale_fill_gradient2(limit = c(0,1))+ geom_tile() +ggtitle('Grid search (gamma and C) for D3- SVM (RBF)')
 ggplot(data = df.res.svm[df.res.svm$group=='D4 (RBF)',], aes(x=C, y=gamma, fill=F1)) + 
-  geom_tile()
-#ggplot(df.res.svm, aes(x=C, y=F1, group=group, color=group)) + 
-#  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+  scale_fill_gradient2(limit = c(0,1))+ geom_tile() +ggtitle('Grid search (gamma and C) for D4 - SVM (RBF)')
 
 ####################################################################
-# Tree
+# Decision tree
 ####################################################################
 
+# 10-fold CV using decision tree 
 run.tree <- function (dataset)
 {
   createModelAndPredict <- function(train, newdata){
     weights = compute.weights(train$y)
-    model <- tree(y ~ ., weights= weights, data=train)
+    model <- rpart(y ~ ., weights= weights, data=train)
     test.pred <- predict (model, newdata, type="class")
     return(test.pred)
   }
   run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
 }
+
 (d1.tree = run.tree(dataset.train))
 (d2.tree = run.tree(dataset.cat.train))
 (d3.tree = run.tree(d3.pcamca.train))
@@ -507,6 +430,7 @@ run.tree <- function (dataset)
 # Random forest
 ####################################################################
 
+# 10-fold CV using random forest
 run.randomForest <- function (dataset, ntree=100)
 {
   createModelAndPredict <- function(train, newdata){
@@ -535,20 +459,21 @@ optimize.ntrees <- function(dataset, ntrees=round(10^seq(1,2,by=0.2))){
   z$max.F1 <- z$F1[max.idx]
   z
 }
-ntrees= round(10^seq(1,2,by=0.2))
+
+ntrees= round(10^seq(1,3,by=0.2))
 (d1.randomForest = optimize.ntrees(dataset.train, ntrees))
 (d2.randomForest = optimize.ntrees(dataset.cat.train, ntrees))
 (d3.randomForest = optimize.ntrees(d3.pcamca.train, ntrees))
 (d4.randomForest = optimize.ntrees(d4.mca.train, ntrees))
 
 
+#Plot results
 df <- data.frame(ntree=rep(ntrees,4),
                  F1=c(d1.randomForest$F1, d2.randomForest$F1, d3.randomForest$F1, d4.randomForest$F1), 
-                 accuracy=c(d1.randomForest$accuracy, d2.randomForest$accuracy, d3.randomForest$accuracy, d4.randomForest$accuracy), 
-                 group=c(rep('D1',length(ntrees)),rep('D2',length(ntrees)), rep('D3',length(ntrees)),rep('D4',length(ntrees))))
+                 Dataset=c(rep('D1',length(ntrees)),rep('D2',length(ntrees)), rep('D3',length(ntrees)),rep('D4',length(ntrees))))
 
-ggplot(df, aes(x=ntree, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1", limits = c(0.65, 0.75)) +
-  scale_x_continuous(trans='log2') +
-  geom_line() + geom_point()+theme_minimal()
+ggplot(df, aes(x=ntree, y=F1, group=Dataset, color=Dataset)) + 
+  labs(x = "Number of trees", y = "F1") + ggtitle('Number of trees - Random forest') + 
+  geom_line() + theme_minimal()  + scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                                                 labels = trans_format("log10", math_format(10^.x)))
 

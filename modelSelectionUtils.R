@@ -2,7 +2,7 @@
 # Some functions usefull for the prediction #
 #############################################
 
-# Function that compute the accuracy given prediction and real values
+# Function that computes the accuracy given prediction and real values
 accuracy <- function (pred, real)
 {
   ct <- table(Truth=real, Pred=pred)
@@ -12,7 +12,7 @@ accuracy <- function (pred, real)
 # harmonic mean
 harm <- function (a,b) { 2/(1/a+1/b) }
 
-# Function that computes the F1 Score (performance mesure): the harmonic mean of precision and recall
+# Function that computes the F1 Score (performance measure): the harmonic mean of precision and recall
 F1 <- function (pred, real)
 {
   ct <- table(Truth=real, Pred=pred)
@@ -20,7 +20,7 @@ F1 <- function (pred, real)
 }
 
 # Function that runs a k-fold-CV using:
-# - The generateModelAndPredict function creates the model and predict in each fold, 
+# - The generateModelAndPredict function creates the model and predicts in each fold, 
 # - The performance.metric computes the goodness of the current fold: accuracy or F1
 run.k.fold.CV <- function(generateModelAndPredict, dataset, performance.metric = c("accuracy","F1"), k = 10, trace = TRUE){
   set.seed(1234)

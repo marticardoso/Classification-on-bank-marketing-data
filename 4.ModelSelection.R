@@ -35,19 +35,19 @@ load("D3.PCAMCA.dataset.Rdata")
 load("D4.MCA.dataset.Rdata")
 set.seed (104)
 
-#First we load some useful function for the model selection task
+# First, we load some useful function for the model selection task
 source('modelSelectionUtils.R')
 
 ####################################################################
 # Logistic Regression
 ####################################################################
 
+# Function that runs 10-fold CV using logistic regression 
 run.logisticRegression <- function (dataset,P=0.5)
 {
   createModelAndPredict <- function(train, newdata){
     weights <- compute.weights(train$y)
     glm.model <- glm (y~., train, weights=weights,family = binomial) 
-    #glm.model <- step(glm.model, trace=FALSE)
     preds <- predict(glm.model, newdata, type="response")
     return(probabilityToFactor(preds,P))
   }
@@ -74,7 +74,6 @@ run.glmnet <- function (dataset, lambda, alpha = 1, P = 0.5)
     #Create dummy variables for categorical
     x <- model.matrix(y~., train)[,-1]
     
-    # Fit the final model on the training data
     model <- glmnet(x, train$y, alpha = alpha, weights = weights, family = "binomial", lambda=lambda)
     
     x.test <- model.matrix(y ~., newdata)[,-1]
@@ -85,7 +84,7 @@ run.glmnet <- function (dataset, lambda, alpha = 1, P = 0.5)
   run.k.fold.CV(createModelAndPredict,dataset, performance.metric=c("accuracy","F1"))
 }
 
-# Try several lambdas
+# Function that tries several lambdas
 run.glmnet.find.best.lambda <- function (dataset, lambda.v, alpha = 1, P = 0.5)
 {
   results = list()
@@ -154,6 +153,7 @@ ggplot(df, aes(x=lambda, y=sd, group=Dataset, color=Dataset)) +
 # LDA
 ####################################################################
 
+# 10-fold CV using LDA 
 run.lda <- function (dataset)
 {
   createModelAndPredict <- function(train, newdata){
@@ -174,6 +174,7 @@ run.lda <- function (dataset)
 # Naïve Bayes
 ####################################################################
 
+# 10-fold CV using Naive Bayes 
 run.NaiveBayes <- function (dataset, laplace=0)
 {
   createModelAndPredict <- function(train, newdata){
@@ -190,7 +191,7 @@ run.NaiveBayes <- function (dataset, laplace=0)
 (d3.naive = run.NaiveBayes(d3.pcamca.train))
 (d4.naive = run.NaiveBayes(d4.mca.train))
 
-#Try several laplace
+# Try several laplace
 ls = c(0:10)
 d1.naive.l.F1 = numeric(length(ls))
 d2.naive.l.F1 = numeric(length(ls))
@@ -218,13 +219,13 @@ ggplot(df.res, aes(x=as.factor(laplace), y=F1, group=Dataset, color=Dataset)) +
 # Multilayer Perceptrons
 ####################################################################
 
+# 10-fold CV using MLP 
 run.MLP <- function (dataset, nneurons, decay=0)
 {
   createModelAndPredict <- function(train, newdata){
     weights = compute.weights(train$y)
     model <- nnet(y ~., data = train, weights = weights, size=nneurons, 
                   maxit=100, decay=decay, MaxNWts=10000, trace=FALSE)
-    print( c("Weights",length(model$wts)))
     test.pred <- predict (model, newdata)
     return(probabilityToFactor(test.pred))
   }
@@ -270,7 +271,7 @@ ggplot(df, aes(x=decays, y=F1, group=Dataset, color=Dataset)) +
 # SVM
 ####################################################################
 
-
+# 10-fold CV using SVM 
 run.SVM <- function (dataset, C=1, which.kernel="linear", gamma=0.5)
 {
   createModelAndPredict <- function(train, newdata){
@@ -381,7 +382,7 @@ for (i in gammas) #Grid search: gamma and C
   d4.svm.RBF.F1[,i] <- optimize.C(d4.mca.train,     Cs, which.kernel="RBF", gamma=gammas[i])$F1
 }
 
-# Plot
+# Plot results
 df.res.svm = data.frame()
 for(i in 1:(length(Cs))){
   for(j in 1:(length(gammas))){
@@ -405,9 +406,10 @@ ggplot(data = df.res.svm[df.res.svm$group=='D4 (RBF)',], aes(x=C, y=gamma, fill=
   scale_fill_gradient2(limit = c(0,1))+ geom_tile() +ggtitle('Grid search (gamma and C) for D4 - SVM (RBF)')
 
 ####################################################################
-# Tree
+# Decision tree
 ####################################################################
 
+# 10-fold CV using decision tree 
 run.tree <- function (dataset)
 {
   createModelAndPredict <- function(train, newdata){
@@ -418,6 +420,7 @@ run.tree <- function (dataset)
   }
   run.k.fold.CV(createModelAndPredict, dataset, performance.metric=c("accuracy","F1"))
 }
+
 (d1.tree = run.tree(dataset.train))
 (d2.tree = run.tree(dataset.cat.train))
 (d3.tree = run.tree(d3.pcamca.train))
@@ -427,6 +430,7 @@ run.tree <- function (dataset)
 # Random forest
 ####################################################################
 
+# 10-fold CV using random forest
 run.randomForest <- function (dataset, ntree=100)
 {
   createModelAndPredict <- function(train, newdata){
@@ -455,6 +459,7 @@ optimize.ntrees <- function(dataset, ntrees=round(10^seq(1,2,by=0.2))){
   z$max.F1 <- z$F1[max.idx]
   z
 }
+
 ntrees= round(10^seq(1,3,by=0.2))
 (d1.randomForest = optimize.ntrees(dataset.train, ntrees))
 (d2.randomForest = optimize.ntrees(dataset.cat.train, ntrees))

@@ -139,16 +139,20 @@ df <- data.frame(lambda=c(lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,lambda.v,
                       d2.Lasso$lambda.F1.sd, d2.ridge$lambda.F1.sd,
                       d3.Lasso$lambda.F1.sd, d3.ridge$lambda.F1.sd,
                       d4.Lasso$lambda.F1.sd, d4.ridge$lambda.F1.sd),
-                 group=c(rep('D1 Lasso',n.lambdas),rep('D1 Ridge',n.lambdas),
+                 Dataset=c(rep('D1 Lasso',n.lambdas),rep('D1 Ridge',n.lambdas),
                          rep('D2 Lasso',n.lambdas),rep('D2 Ridge',n.lambdas),
-                         rep('D3 (PCA+MCA) Lasso',n.lambdas),rep('D3 (PCA+MCA) Ridge',n.lambdas),
-                         rep('D4 (MCA) Lasso',n.lambdas),rep('D4 (MCA) Ridge',n.lambdas)))
+                         rep('D3 Lasso',n.lambdas),rep('D3 Ridge',n.lambdas),
+                         rep('D4 Lasso',n.lambdas),rep('D4 Ridge',n.lambdas)))
 
-ggplot(df[df$F1>0.5,], aes(x=lambda, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1", limits = c(0.65, 0.75)) + scale_x_continuous(trans='log2')+
-  geom_line() + theme_minimal()
+library(scales)
+ggplot(df, aes(x=lambda, y=F1, group=Dataset, color=Dataset)) + 
+  scale_y_continuous(name = "F1") +
+  geom_line() + theme_minimal() + ggtitle('Optimization of lambda - Lasso and ridge regression') + 
+  coord_cartesian(ylim=c(0.65, 0.75)) + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x)))
 
-ggplot(df[df$F1>0.5,], aes(x=lambda, y=sd, group=group, color=group)) + 
+ggplot(df[df$F1>0.5,], aes(x=lambda, y=sd, group=Dataset, color=Dataset)) + 
   scale_y_continuous(name = "sd(F1)",limits = c(0, 0.028)) + scale_x_continuous(trans='log2')+
   geom_line() + theme_minimal()
 
@@ -274,11 +278,31 @@ run.NaiveBayes <- function (dataset, laplace=0)
 (d4.naive.lapl = run.NaiveBayes(d4.mca.train,laplace=1))
 
 ls = c(0:10)
-result = numeric(length(ls))
+d1.naive.l.F1 = numeric(length(ls))
+d2.naive.l.F1 = numeric(length(ls))
+d3.naive.l.F1 = numeric(length(ls))
+d4.naive.l.F1 = numeric(length(ls))
 for(i in 1:length(ls)){
-  result[i] = run.NaiveBayes(dataset.train,laplace=ls[i])$F1.mean
+  print(paste("Laplace: ",ls[i]))
+  d1.naive.l.F1[i] = run.NaiveBayes(dataset.train,laplace=ls[i])$F1.mean
+  d2.naive.l.F1[i] = run.NaiveBayes(dataset.cat.train,laplace=ls[i])$F1.mean
+  d3.naive.l.F1[i] = run.NaiveBayes(d3.pcamca.train,laplace=ls[i])$F1.mean
+  d4.naive.l.F1[i] = run.NaiveBayes(d4.mca.train,laplace=ls[i])$F1.mean
 }
-plot(ls,result,type='l')
+plot(ls,d4.naive.l.F1,type='l')
+
+save(d1.naive.l.F1,d2.naive.l.F1,d3.naive.l.F1,d4.naive.l.F1, file = "tmp/naive-results.Rdata")
+load("tmp/naive-results.Rdata")
+
+# Plot results
+df.res <- data.frame(laplace=c(ls,ls,ls,ls),
+                 F1=c(d1.naive.l.F1, d2.naive.l.F1, d3.naive.l.F1, d4.naive.l.F1), 
+                 Dataset=c(rep('D1',length(ls)),rep('D2',length(ls)),
+                         rep('D3',length(ls)),rep('D4',length(ls))))
+ggplot(df.res, aes(x=as.factor(laplace), y=F1, group=Dataset, color=Dataset)) + 
+  labs(x = "laplace smoothing", y = "F1") +
+  geom_line() + theme_minimal() + ggtitle('Laplace smoothing optimization  - Naive Bayes') + 
+  coord_cartesian(ylim=c(0.58, 0.73)) 
 
 ####################################################################
 # Multilayer Perceptrons
@@ -316,14 +340,22 @@ optimize.decay <- function(dataset, nneurons, decays=c(0,10^seq(-3,0,by=0.1))){
 }
 
 # We fix a large number of hidden units in one hidden layer, and explore different regularization values
-nneurons <- 20
-decays <- c(0,10^seq(-3,0,by=1))
+nneurons <- 30
+decays <- c(0,10^seq(-3,5,by=1))
 
 (d1.mlp <- optimize.decay(dataset.train,    nneurons, decays))
 (d2.mlp <- optimize.decay(dataset.cat.train,nneurons, decays))
 (d3.mlp <- optimize.decay(d3.pcamca.train,  nneurons, decays))
 (d4.mlp <- optimize.decay(d4.mca.train,     nneurons, decays))
 
+df <- data.frame(decays=rep(decays,4),
+                 F1=c(d1.mlp$F1, d2.mlp$F1, d3.mlp$F1, d4.mlp$F1), 
+                 Dataset=c(rep('D1',length(decays)),rep('D2',length(decays)), rep('D3',length(decays)),rep('D4',length(decays))))
+
+ggplot(df, aes(x=decays, y=F1, group=Dataset, color=Dataset)) + 
+  labs(x = "Decay", y = "F1") + ggtitle('Decay opt. - MLP') + coord_cartesian(ylim=c(0.65, 0.75)) + 
+  geom_line() + theme_minimal()  + scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                                                 labels = trans_format("log10", math_format(10^.x)))
 ####################################################################
 # SVM
 ####################################################################
@@ -394,8 +426,11 @@ df.res.lin <- data.frame(k=c(d1.svm.lin$Cs,d2.svm.lin$Cs,d3.svm.lin$Cs,d4.svm.li
                  group=c(rep('D1 (lineal)',length(d1.svm.lin$Cs)),rep('D2 (lineal)',length(d2.svm.lin$Cs)),rep('D3 (lineal)',length(d3.svm.lin$Cs)),rep('D4 (lineal)',length(d4.svm.lin$Cs))))
 
 ggplot(df.res.lin, aes(x=k, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+  labs(x = "C", y ="F1") +  coord_cartesian(ylim=c(0.65, 0.75)) +
+  geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (lineal)') + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
+  
 
 #Polinomial 2
 d1.svm.poly2 <- optimize.C(dataset.train,     Cs, which.kernel="poly.2")
@@ -413,7 +448,9 @@ df.res.poly2 <- data.frame(k=c(d1.svm.poly2$Cs, d2.svm.poly2$Cs, d3.svm.poly2$Cs
                          group=c(rep('D1 (poly2)',length(d1.svm.poly2$Cs)),rep('D2 (poly2)',length(d2.svm.poly2$Cs)),rep('D3 (poly2)',length(d3.svm.poly2$Cs)),rep('D4 (poly2)',length(d4.svm.poly2$Cs))))
 
 ggplot(df.res.poly2, aes(x=k, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+  labs(x = "C", y ="F1") +  coord_cartesian(ylim=c(0.65, 0.75)) +
+  geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (Poly2)') + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
 #Polinomial 3
 d1.svm.poly3 <- optimize.C(dataset.train,     Cs, which.kernel="poly.3")
@@ -429,7 +466,9 @@ df.res.poly3 <- data.frame(k=c(d1.svm.poly3$Cs,d2.svm.poly3$Cs,d3.svm.poly3$Cs,d
                            group=c(rep('D1 (poly3)',length(d1.svm.poly3$Cs)),rep('D2 (poly3)',length(d2.svm.poly3$Cs)),rep('D3 (poly3)',length(d3.svm.poly3$Cs)),rep('D4 (poly3)',length(d4.svm.poly3$Cs))))
 
 ggplot(df.res.poly3, aes(x=k, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1") + scale_x_continuous(trans='log10') + geom_line() + theme_minimal()
+  labs(x = "C", y ="F1") +  coord_cartesian(ylim=c(0.65, 0.75)) +
+  geom_line() + theme_minimal()+ ggtitle('Optimization of C - SVM (Poly3)') + 
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x)))
 
 
 #RBF
@@ -492,7 +531,7 @@ run.tree <- function (dataset)
 {
   createModelAndPredict <- function(train, newdata){
     weights = compute.weights(train$y)
-    model <- tree(y ~ ., weights= weights, data=train)
+    model <- rpart(y ~ ., weights= weights, data=train)
     test.pred <- predict (model, newdata, type="class")
     return(test.pred)
   }
@@ -535,20 +574,23 @@ optimize.ntrees <- function(dataset, ntrees=round(10^seq(1,2,by=0.2))){
   z$max.F1 <- z$F1[max.idx]
   z
 }
-ntrees= round(10^seq(1,2,by=0.2))
+ntrees= round(10^seq(1,3,by=0.2))
 (d1.randomForest = optimize.ntrees(dataset.train, ntrees))
 (d2.randomForest = optimize.ntrees(dataset.cat.train, ntrees))
 (d3.randomForest = optimize.ntrees(d3.pcamca.train, ntrees))
 (d4.randomForest = optimize.ntrees(d4.mca.train, ntrees))
 
+save(ntrees,d1.randomForest,d2.randomForest,d3.randomForest,d4.randomForest, file = "tmp/random-forest-ntree.Rdata")
+load("tmp/random-forest-ntree.Rdata")
 
+#Plot results
 df <- data.frame(ntree=rep(ntrees,4),
                  F1=c(d1.randomForest$F1, d2.randomForest$F1, d3.randomForest$F1, d4.randomForest$F1), 
-                 accuracy=c(d1.randomForest$accuracy, d2.randomForest$accuracy, d3.randomForest$accuracy, d4.randomForest$accuracy), 
-                 group=c(rep('D1',length(ntrees)),rep('D2',length(ntrees)), rep('D3',length(ntrees)),rep('D4',length(ntrees))))
+                 Dataset=c(rep('D1',length(ntrees)),rep('D2',length(ntrees)), rep('D3',length(ntrees)),rep('D4',length(ntrees))))
 
-ggplot(df, aes(x=ntree, y=F1, group=group, color=group)) + 
-  scale_y_continuous(name = "F1", limits = c(0.65, 0.75)) +
-  scale_x_continuous(trans='log2') +
-  geom_line() + geom_point()+theme_minimal()
+ggplot(df, aes(x=ntree, y=F1, group=Dataset, color=Dataset)) + 
+  labs(x = "Number of trees", y = "F1") + ggtitle('Number of trees - Random forest') + 
+  geom_line() + theme_minimal()  + scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                                              labels = trans_format("log10", math_format(10^.x)))
+
 

@@ -48,3 +48,6 @@ harm <- function (a,b) { 2/(1/a+1/b) }
 
 (acc <- round(100*(sum(diag(ct))/sum(ct)),2))
 
+(prop.table(ct,1))
+
+(prop.table(ct,2))

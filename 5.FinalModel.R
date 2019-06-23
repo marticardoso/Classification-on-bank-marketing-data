@@ -43,9 +43,6 @@ test.pred <- predict (model, dataset.cat.test)
 
 # Compute some statistics
 
-harm <- function (a,b) { 2/(1/a+1/b) }
-(F1 <- harm (prop.table(ct,1)[1,1], prop.table(ct,1)[2,2]))
-
 (acc <- round(100*(sum(diag(ct))/sum(ct)),2))
 
 (prop.table(ct,1))

@@ -8,7 +8,7 @@
 #         We try several ML methods in order to select the best model 
 # June 2019
 ####################################################################
-
+# Warning: this script takes hours to be executed.
 rm(list = ls())
 
 # Set environment

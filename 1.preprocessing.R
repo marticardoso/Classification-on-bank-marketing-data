@@ -179,11 +179,6 @@ show.barplot("day_of_week")
 show.barplot("poutcome")
 show.barplot("y")
 
-
-# Plot pairs of variables
-plot(dataset$campaign, dataset$pdays)
-
-
 ########################
 # Statistical analysis #
 ########################
